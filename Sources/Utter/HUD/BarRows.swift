@@ -187,7 +187,7 @@ private struct LoadingDots: View {
 
     var body: some View {
         TimelineView(.animation) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
+            let t = (SnapshotClock.date ?? timeline.date).timeIntervalSinceReferenceDate
             HStack(spacing: 3.5) {
                 ForEach(0..<3, id: \.self) { i in
                     let wave = (sin(t * 6 - Double(i) * 0.9) + 1) / 2

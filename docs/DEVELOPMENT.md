@@ -44,7 +44,10 @@ XCTest and swift-testing need full Xcode (they depend on compiler plugins the Co
 ```bash
 swift build
 .build/debug/Utter --snapshot /tmp/utter-snaps     # render every screen and island state to PNGs
-                                                    # (sizes-*.png: the island at three notch widths)
+                                                    # (sizes-*.png: the island at three notch widths;
+                                                    # frames/: a dictation as 30 fps frames)
+./scripts/make-demo-video.sh /tmp/utter-snaps/frames docs/images
+                                                    # frames → docs/images/demo.gif (README) and demo.mp4
 CONFIG=debug ./scripts/build.sh
 .build/debug/Utter --probe-parakeet clip.wav        # download/load Parakeet, transcribe a 16 kHz mono WAV, time it
 open -n -W --stdout /tmp/probe.log build/Utter.app --args --probe-speech clip.aiff

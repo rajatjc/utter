@@ -184,7 +184,7 @@ struct Waveform: View {
 
     var body: some View {
         TimelineView(.animation) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
+            let t = (SnapshotClock.date ?? timeline.date).timeIntervalSinceReferenceDate
             Canvas { context, size in
                 let barWidth: CGFloat = 2.6
                 let gap = (size.width - CGFloat(bars) * barWidth) / CGFloat(max(bars - 1, 1))

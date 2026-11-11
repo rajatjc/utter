@@ -8,8 +8,7 @@
 Dictate polished text into any app, or tell your Mac what to do.</p>
 
 <p align="center">
-  <img src="docs/images/in-use-listening.png" width="420" alt="Listening: the notch opens into a glowing orb and waveform">
-  <img src="docs/images/in-use-done.png" width="420" alt="Done: a green check and Inserted 12 words">
+  <img src="docs/images/demo.gif" width="810" alt="A dictation in the notch: three glowing outlined blobs and a waveform move with the voice and jolt when speech starts, then Polishing, then a green check and Inserted 12 words">
 </p>
 
 ## What it does
@@ -23,7 +22,9 @@ Dictate polished text into any app, or tell your Mac what to do.</p>
 | | |
 |---|---|
 | <img src="docs/images/island-controls.png" width="380" alt="Notch controls"> | Rest the pointer under the camera to open the controls. |
+| <img src="docs/images/in-use-listening.png" width="380" alt="Listening"> | While you talk, the orb and waveform move with your voice. |
 | <img src="docs/images/in-use-polishing.png" width="380" alt="Polishing"> | After you release the key, Whisper transcribes and the text is polished. |
+| <img src="docs/images/in-use-done.png" width="380" alt="Done"> | The text is typed at your cursor. |
 | <img src="docs/images/in-use-confirm.png" width="380" alt="Confirm a command"> | Commands that run in Terminal wait for your approval. |
 
 ## More screenshots
@@ -36,8 +37,8 @@ Dictate polished text into any app, or tell your Mac what to do.</p>
 | <img src="docs/images/settings-history.png" width="380" alt="History"> | **History.** Everything dictated or asked, stored only on this Mac. |
 | <img src="docs/images/floating-pill.png" width="380" alt="Floating pill"> | **Floating pill.** Used automatically on Macs without a notch; drag it anywhere. |
 
-<p align="center"><img src="docs/images/orb-morph.png" width="760" alt="The orb at six moments, quiet (top) and speaking (bottom)"><br>
-<em>The orb's shape over time: quiet (top) and while speaking (bottom).</em></p>
+<p align="center"><img src="docs/images/orb-morph.png" width="760" alt="The orb at six moments, quiet (top) and speaking (bottom): three overlapping outlined blobs in amber, pink and blue"><br>
+<em>The orb is three blobs sharing one centre, each a different shape with its edge lit in its own colour. Quiet (top) and while speaking (bottom).</em></p>
 
 ## Controls
 

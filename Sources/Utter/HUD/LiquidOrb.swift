@@ -75,6 +75,14 @@ struct BlobShape: Shape {
     }
 }
 
+/// Developer snapshots only (`--snapshot`): when set, animated views draw this
+/// moment instead of the real time, and every orb draws `motion` without
+/// advancing it, so an animation can be rendered frame by frame.
+enum SnapshotClock {
+    nonisolated(unsafe) static var date: Date?
+    nonisolated(unsafe) static var motion: BlobMotion?
+}
+
 /// Frame-to-frame motion for the three blobs. Phases are integrated over time
 /// (so changing speed never makes a shape jump) and the mic level is eased.
 ///
@@ -181,10 +189,12 @@ struct AIOrb: View {
 
     var body: some View {
         TimelineView(.animation) { timeline in
-            let now = timeline.date
+            let now = SnapshotClock.date ?? timeline.date
             let age = now.timeIntervalSince(since)
             let settled = mood == .done || mood == .failed
-            let _ = motion.step(to: now, target: Double(level), calm: mood != .listening)
+            if SnapshotClock.motion == nil {
+                let _ = motion.step(to: now, target: Double(level), calm: mood != .listening)
+            }
             // Smoothstep from 1 to 0 over half a second when settling.
             let s = settled ? max(0, 1 - age / 0.5) : 1
             let settle = s * s * (3 - 2 * s)
@@ -220,6 +230,7 @@ struct AIOrb: View {
     }
 
     private func draw(_ ctx: inout GraphicsContext, in canvas: CGSize, settle: Double) {
+        let motion = SnapshotClock.motion ?? self.motion
         let lv = preview?.level ?? motion.level
         let energy = preview == nil ? motion.energy * settle : 0
         let jitter = motion.jitter

@@ -125,7 +125,7 @@ enum Snapshots {
 
         // The island as it looks in use: hanging from the menu bar over a desktop,
         // for the README and the portfolio.
-        func onDesktop(_ name: String) {
+        func onDesktop(_ name: String, in folder: URL? = nil) {
             render(ZStack(alignment: .top) {
                 LinearGradient(colors: [Color(red: 0.09, green: 0.08, blue: 0.18),
                                         Color(red: 0.22, green: 0.12, blue: 0.30),
@@ -137,7 +137,17 @@ enum Snapshots {
                 NotchIslandView(geometry: notch).environmentObject(state)
             }
             .frame(width: 540, height: 140)
-            .environment(\.colorScheme, .dark), to: dir, "desktop-\(name)")
+            .environment(\.colorScheme, .dark), to: folder ?? dir, folder == nil ? "desktop-\(name)" : name)
+        }
+        // A blob motion that has been running for a few seconds at a steady
+        // level, so stills show it settled rather than mid-jolt.
+        func settledMotion(level: Double, calm: Bool) -> BlobMotion {
+            let motion = BlobMotion()
+            let start = Date()
+            for frame in 0...150 {
+                motion.step(to: start.addingTimeInterval(Double(frame) / 30), target: level, calm: calm)
+            }
+            return motion
         }
         state.phase = .idle
         state.barHovering = true
@@ -147,18 +157,64 @@ enum Snapshots {
         state.livePreview = false
         state.phase = .listening(.dictation)
         state.level = 0.7
+        SnapshotClock.motion = settledMotion(level: 0.7, calm: false)
         onDesktop("listening")
+        SnapshotClock.motion = settledMotion(level: 0, calm: true)
         state.phase = .processing(.dictation)
         state.step = "Polishing…"
         onDesktop("polishing")
         state.phase = .done("Inserted 12 words")
         state.phaseSince = Date().addingTimeInterval(-1)
         onDesktop("done")
+        SnapshotClock.motion = nil
         state.sessionMode = .command
         state.livePreview = true
         state.confirmPurpose = "Deploy the website"
         state.phase = .confirm("cd ~/code/website && ./deploy.sh")
         onDesktop("confirm")
+
+        // A dictation as numbered frames at 30 fps (frames/frame-000.png …):
+        // quiet, talking (with the jolt at each start of speech), polishing,
+        // done. scripts/make-demo-video.sh turns them into the README GIF and
+        // the portfolio video.
+        let frames = dir.appendingPathComponent("frames", isDirectory: true)
+        try? FileManager.default.createDirectory(at: frames, withIntermediateDirectories: true)
+        let motion = BlobMotion()
+        SnapshotClock.motion = motion
+        let start = Date()
+        var heldLevel = 0.0
+        state.sessionMode = .dictation
+        state.livePreview = false
+        for frame in 0..<240 {
+            let t = Double(frame) / 30
+            let now = start.addingTimeInterval(t)
+            SnapshotClock.date = now
+            // The mic level updates 20 times a second in the app; hold it between updates.
+            if frame % 3 == 0 {
+                let talking = (0.6..<3.6).contains(t) || (4.2..<5.4).contains(t)
+                let syllable = max(0, sin(t * 9 + sin(t * 2.3) * 2))
+                heldLevel = talking
+                    ? min(1, 0.25 + 0.65 * syllable * (0.6 + 0.4 * sin(t * 1.7)) + 0.1 * Double.random(in: 0...1))
+                    : 0.02
+            }
+            if t < 5.4 {
+                if case .listening = state.phase {} else { state.phase = .listening(.dictation) }
+                state.level = Float(heldLevel)
+            } else if t < 6.4 {
+                if case .processing = state.phase {} else {
+                    state.phase = .processing(.dictation)
+                    state.step = "Polishing…"
+                    state.level = 0
+                }
+            } else {
+                if case .done = state.phase {} else { state.phase = .done("Inserted 12 words") }
+                state.phaseSince = start.addingTimeInterval(6.4)
+            }
+            motion.step(to: now, target: t < 5.4 ? heldLevel : 0, calm: t >= 5.4)
+            onDesktop(String(format: "frame-%03d", frame), in: frames)
+        }
+        SnapshotClock.motion = nil
+        SnapshotClock.date = nil
 
         // The island at the notch widths of different display scalings:
         // "Larger Text" (≈150 pt), default (185 pt) and "More Space" (≈230 pt).

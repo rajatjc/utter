@@ -40,3 +40,6 @@ snapshots/
 .wrangler/
 node_modules/
 .dev.vars
+
+# Made by scripts/make-demo-video.sh for the portfolio; the README uses demo.gif
+docs/images/demo.mp4
