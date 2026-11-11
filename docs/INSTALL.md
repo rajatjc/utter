@@ -125,12 +125,13 @@ Use the **Try it** box at the bottom of **Get started**, or click into any text 
 | Dictation stopped and the License page opened | The 14-day trial ended. Paste a license key in Settings → License |
 | Whisper fails to start | Settings → AI & dictation → Restart; the log is `~/Library/Application Support/Utter/whisper.log` |
 | Speech recognition unavailable | System Settings → Siri & Dictation → turn on |
+| The shortcut stopped working (for example after sleep) | Quit Utter from the menu bar (right-click → Quit Utter) and open it again. To find the cause, look at `~/Library/Application Support/Utter/diagnostics.log` around the time it stopped |
 | A few apps ignore the text | Utter pastes with ⌘V; some terminals and remote desktops block synthesized keystrokes |
 
 ## Uninstalling
 
 1. Quit Utter from the menu bar and delete it from Applications.
-2. Delete the speech models, settings, history and stats:
+2. Delete the speech models, settings, history, stats and diagnostics log:
    ```bash
    rm -rf "$HOME/Library/Application Support/Utter"
    defaults delete dev.utter.Utter

@@ -86,6 +86,7 @@ The island keeps one size from listening through "Polishing" to "Inserted N word
 | Audio | Recorded to a temporary WAV, transcribed locally, deleted immediately |
 | Transcripts and results | History in `~/Library/Application Support/Utter/history.json` (on this Mac only; cleared automatically after 7 or 30 days if chosen, or kept off entirely) |
 | Usage stats | Word, dictation and second counts per day in `stats.json`; no text |
+| Diagnostics | `diagnostics.log` (capped at 2 MB, one older file kept): held modifier keys and what they triggered, a count of other key presses every 10 minutes, sleep/wake/lock, permission changes, session steps and microphone format. Never which letters or words were typed, and never dictated text |
 | Text around the cursor | Read when dictation starts, used only to fit the new text, never stored or sent |
 | License key, trial start | Login Keychain |
 | Anthropic API key | Login Keychain |

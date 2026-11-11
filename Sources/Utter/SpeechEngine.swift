@@ -69,7 +69,13 @@ final class SpeechEngine: @unchecked Sendable { // state is only touched on the 
         input.installTap(onBus: 0, bufferSize: 1024, format: format,
                          block: Self.tapBlock(stream: stream, recorder: recorder, onLevel: onLevel))
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+            Diagnostics.log("audio", "microphone started: \(Int(format.sampleRate)) Hz, \(format.channelCount) channel(s), recognizer \(recognizer != nil), recording \(record)")
+        } catch {
+            Diagnostics.log("audio", "microphone failed to start (\(Int(format.sampleRate)) Hz, \(format.channelCount) ch): \(error.localizedDescription)")
+            throw error
+        }
     }
 
     /// Stops recording and waits briefly for the recognizer's final words.

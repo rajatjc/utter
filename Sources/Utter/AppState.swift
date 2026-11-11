@@ -31,7 +31,11 @@ final class AppState: ObservableObject {
     static let shared = AppState()
 
     @Published var phase: Phase = .idle {
-        didSet { if oldValue != phase { phaseSince = Date() } }
+        didSet {
+            guard oldValue != phase else { return }
+            phaseSince = Date()
+            Diagnostics.log("session", "\(Self.describe(oldValue)) → \(Self.describe(phase))")
+        }
     }
     /// When the current phase began (drives the orb's completion animation).
     @Published var phaseSince = Date()
@@ -102,7 +106,22 @@ final class AppState: ObservableObject {
         hud.resetPosition()
     }
 
+    /// Phase names for the diagnostics log. Dictated text, commands and words are left out.
+    private static func describe(_ phase: Phase) -> String {
+        switch phase {
+        case .idle: "idle"
+        case .listening(let mode): "listening (\(mode.rawValue))"
+        case .processing(let mode): "processing (\(mode.rawValue))"
+        case .done: "done"
+        case .failed(let message): "failed: \(message)"
+        case .notice(let message): "notice: \(message)"
+        case .confirm: "waiting for command approval"
+        case .suggest: "suggesting a dictionary word"
+        }
+    }
+
     func start() {
+        Diagnostics.start()
         history = HistoryStore.load()
         applyHistoryRetention()
         CorrectionWatcher.shared.onSuggestion = { [weak self] word in self?.suggest(word) }
@@ -166,6 +185,7 @@ final class AppState: ObservableObject {
         if installed != whisperInstalled { whisperInstalled = installed }
         let new = Permissions.current()
         guard new != permissions else { return }
+        Diagnostics.log("permissions", "microphone \(new.microphone), speech \(new.speech), accessibility \(new.accessibility) (was \(permissions.microphone), \(permissions.speech), \(permissions.accessibility))")
         let gainedAccessibility = new.accessibility && !permissions.accessibility
         permissions = new
         if gainedAccessibility { hotkeys.restart() }
@@ -174,7 +194,10 @@ final class AppState: ObservableObject {
     // MARK: Session lifecycle
 
     private func beginListening(_ mode: Mode) {
-        if case .processing = phase { return }
+        if case .processing = phase {
+            Diagnostics.log("session", "start \(mode.rawValue) ignored: still processing the previous one")
+            return
+        }
         if isMuted {
             hotkeys.reset()
             return notice("Muted. Click the mic icon on the bar to unmute.")
