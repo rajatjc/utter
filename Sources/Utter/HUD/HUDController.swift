@@ -47,6 +47,11 @@ final class HUDController {
 
     private func pollNotchHover() {
         guard style == .notch else { return }
+        if state.menuPanelOpen {
+            hoverSince = nil
+            if state.barHovering { setHover(false) }
+            return
+        }
         guard let panel, panel.isVisible else {
             if state.barHovering { setHover(false) }
             return

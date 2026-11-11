@@ -42,10 +42,32 @@ enum Prefs {
         return value.isEmpty ? defaultWhisperModel : value
     }
 
-    /// Two-letter language code for Whisper (skips auto-detection), e.g. "en".
+    /// Two-letter language code for Whisper, e.g. "en", or nil to let Whisper
+    /// detect the language (the "Auto-detect" choice).
     static var whisperLanguage: String? {
-        locale.language.languageCode?.identifier
+        if defaults.string(forKey: localeKey) == autoDetectLanguage { return nil }
+        return locale.language.languageCode?.identifier
     }
+
+    /// Stored instead of a locale to mean "let Whisper detect the language".
+    static let autoDetectLanguage = "auto"
+
+    /// Languages offered in Settings: (stored value, label). "" is the system language.
+    static let speechLanguages: [(id: String, label: String)] = [
+        ("", "System default"),
+        (autoDetectLanguage, "Auto-detect (Whisper)"),
+        ("en-US", "English (US)"), ("en-GB", "English (UK)"), ("en-CA", "English (Canada)"),
+        ("en-IN", "English (India)"), ("en-AU", "English (Australia)"),
+        ("hi-IN", "Hindi"), ("fr-FR", "French"), ("fr-CA", "French (Canada)"),
+        ("es-ES", "Spanish (Spain)"), ("es-MX", "Spanish (Mexico)"), ("de-DE", "German"),
+        ("it-IT", "Italian"), ("pt-BR", "Portuguese (Brazil)"), ("pt-PT", "Portuguese (Portugal)"),
+        ("nl-NL", "Dutch"), ("ru-RU", "Russian"), ("uk-UA", "Ukrainian"), ("pl-PL", "Polish"),
+        ("tr-TR", "Turkish"), ("ar-SA", "Arabic"), ("he-IL", "Hebrew"),
+        ("ja-JP", "Japanese"), ("ko-KR", "Korean"), ("zh-CN", "Chinese (Mandarin)"),
+        ("zh-HK", "Chinese (Cantonese)"), ("vi-VN", "Vietnamese"), ("th-TH", "Thai"),
+        ("id-ID", "Indonesian"), ("sv-SE", "Swedish"), ("da-DK", "Danish"), ("nb-NO", "Norwegian"),
+        ("fi-FI", "Finnish"),
+    ]
 
     static let dictationEngineKey = "dictationEngine"
 
@@ -122,7 +144,9 @@ enum Prefs {
     static var sendWindowTitle: Bool { defaults.object(forKey: sendWindowTitleKey) as? Bool ?? true }
 
     static var locale: Locale {
-        if let id = defaults.string(forKey: localeKey), !id.isEmpty { return Locale(identifier: id) }
+        if let id = defaults.string(forKey: localeKey), !id.isEmpty, id != autoDetectLanguage {
+            return Locale(identifier: id)
+        }
         return Locale.current
     }
 

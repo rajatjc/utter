@@ -140,17 +140,16 @@ struct AIPage: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Speech language").font(.system(size: 13, weight: .medium))
-                            Text("For example en-US or fr-FR. Leave blank to use the system language.")
+                            Text(languageDetail)
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Spacer()
-                        TextField("System", text: $locale)
-                            .textFieldStyle(.plain)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 90)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+                        Spacer(minLength: 12)
+                        Picker("", selection: $locale) {
+                            ForEach(languageChoices, id: \.id) { Text($0.label).tag($0.id) }
+                        }
+                        .labelsHidden()
+                        .frame(width: 200)
                     }
                     .padding(12)
                 }
@@ -160,6 +159,28 @@ struct AIPage: View {
 }
 
 private extension AIPage {
+    /// The list from Prefs, plus whatever was typed in the old free-text field.
+    var languageChoices: [(id: String, label: String)] {
+        var choices = Prefs.speechLanguages
+        if !choices.contains(where: { $0.id == locale }) {
+            let name = Locale.current.localizedString(forIdentifier: locale) ?? locale
+            choices.append((locale, name))
+        }
+        return choices
+    }
+
+    var languageDetail: String {
+        switch locale {
+        case "":
+            let name = Locale.current.localizedString(forIdentifier: Locale.current.identifier) ?? Locale.current.identifier
+            return "Uses your Mac's language: \(name)."
+        case Prefs.autoDetectLanguage:
+            return "Whisper works out the language each time. Best if you switch languages; can misjudge very short clips."
+        default:
+            return "The language you dictate in."
+        }
+    }
+
     var whisperFailed: Bool {
         if case .failed = sidecar.status { return true }
         return false

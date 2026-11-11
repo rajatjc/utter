@@ -230,6 +230,7 @@ private struct BarButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .hoverGlow(colors.last ?? Theme.violet, lift: 1.06)
         .help(label)
     }
 }
@@ -251,5 +252,6 @@ private struct BarIconButton: View {
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .hoverGlow(colors.count > 1 && colors[0] != colors[1] ? colors[1] : Theme.violet, lift: 1.12)
     }
 }

@@ -41,6 +41,7 @@ struct MenuContent: View {
                             .buttonStyle(.plain)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(Theme.violet)
+                            .hoverGlow(Theme.violet, lift: 1.08)
                     }
                 }
                 if state.history.isEmpty {
@@ -70,6 +71,7 @@ struct MenuContent: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .hoverGlow(Theme.coral, lift: 1.06)
             }
         }
         .padding(16)
@@ -132,6 +134,14 @@ private struct ModeCard: View {
     let key: String
 
     var body: some View {
+        // Clicking a card opens the shortcut settings, where its key can be changed.
+        Button { SettingsWindow.show(page: .shortcuts) } label: { card }
+            .buttonStyle(.plain)
+            .hoverGlow(Theme.colors(for: mode)[0], lift: 1.03)
+            .help("Change the \(title.lowercased()) shortcut")
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -151,6 +161,7 @@ private struct ModeCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.045)))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

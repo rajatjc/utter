@@ -45,7 +45,7 @@ Dictate polished text into any app, or tell your Mac what to do.</p>
 | Hold **Right ⌘** | Command mode |
 | **Esc** | Cancel |
 
-Both shortcuts can be changed in Settings → Shortcuts.
+Both shortcuts can be changed in Settings → Shortcuts. Click the menu bar icon for the Utter panel; right-click it for Settings, Mute and Quit.
 
 ## Install
 

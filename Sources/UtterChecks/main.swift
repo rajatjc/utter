@@ -166,5 +166,60 @@ if let s = seconds(PauseChunker.cut(longer[(3 * 16000)...])) {
     check(abs(s - 7.2) < 0.05, "offset is relative to the slice", "\(s)")
 } else { check(false, "finds the pause in an offset slice") }
 
+// MARK: Joining chunk transcripts
+
+check(ChunkJoiner.join(["We have two open roles.", "And we have five candidates."])
+      == "We have two open roles, and we have five candidates.", "continuation word joins with a comma")
+check(ChunkJoiner.join(["The role is hard to fill.", "So we're using an agency."])
+      == "The role is hard to fill, so we're using an agency.", "so")
+check(ChunkJoiner.join(["First, the launch.", "We're aiming for March."])
+      == "First, the launch. We're aiming for March.", "a real new sentence stays a sentence")
+check(ChunkJoiner.join(["Is that right?", "And then?"]) == "Is that right? And then?", "questions aren't merged")
+check(ChunkJoiner.join(["Wait...", "And then"]) == "Wait... And then", "ellipsis isn't merged")
+check(ChunkJoiner.join(["Android is next.", "Andrew owns it."]) == "Android is next. Andrew owns it.",
+      "only whole words count (Andrew isn't 'and')")
+check(ChunkJoiner.join(["", " One. ", "", "Two."]) == "One. Two.", "empty chunks and spaces are ignored")
+check(ChunkJoiner.join(["Single chunk."]) == "Single chunk.", "one chunk is unchanged")
+check(ChunkJoiner.join(["See you then.", ChunkJoiner.hardBreak, "So, next topic."]) == "See you then. So, next topic.",
+      "never merges across a skipped stretch of silence or noise")
+check(ChunkJoiner.join(["With the team.", ChunkJoiner.hardBreak, "so I wanted an update"]) == "With the team. So I wanted an update",
+      "capitalises a new sentence after a break")
+check(ChunkJoiner.join(["on the quarterly roadmap", "The payments team finished."])
+      == "on the quarterly roadmap. The payments team finished.", "restores a full stop Whisper dropped at a seam")
+check(ChunkJoiner.join(["and then", "I said no."]) == "and then I said no.", "'I' doesn't start a new sentence")
+check(ChunkJoiner.join(["we met", "and talked."]) == "we met and talked.", "lowercase continuations just join")
+check(ChunkJoiner.join(["Two roles.", ChunkJoiner.hardBreak, "Hiring.", "And then more."]) == "Two roles. Hiring, and then more.",
+      "merging resumes after the chunk following a break")
+
+// MARK: Speech detection (silence and noise must never reach Whisper)
+
+var noiseGen = SystemRandomNumberGenerator()
+func noise(seconds: Double, level: Double) -> [Int16] {
+    (0..<Int(seconds * 16000)).map { _ in Int16(Double.random(in: -1...1, using: &noiseGen) * level * 32768 * 1.7) }
+}
+func hum(seconds: Double) -> [Int16] {
+    (0..<Int(seconds * 16000)).map { i in Int16(0.01 * 32768 * sin(2 * Double.pi * 120 * Double(i) / 16000)) }
+}
+let speechLike = signal(seconds: 3, gaps: [(1, 1.2)])
+check(!SpeechDetector.containsSpeech([Int16](repeating: 0, count: 8 * 16000)[...]), "silence has no speech")
+check(!SpeechDetector.containsSpeech(noise(seconds: 8, level: 0.003)[...]), "room noise has no speech")
+check(!SpeechDetector.containsSpeech(hum(seconds: 8)[...]), "fan hum has no speech")
+check(SpeechDetector.containsSpeech(speechLike[...]), "speech is detected")
+check(SpeechDetector.containsSpeech((noise(seconds: 2, level: 0.003) + speechLike)[...]), "speech over noise is detected")
+let speechThenNoise = speechLike + noise(seconds: 6, level: 0.003)
+let end = Double(SpeechDetector.endOfSpeech(speechThenNoise[...])) / 16000
+check(abs(end - 3.4) < 0.1, "trailing noise is trimmed (speech ends at 3 s + 0.4 s padding)", "\(end)")
+check(SpeechDetector.endOfSpeech(noise(seconds: 3, level: 0.003)[...]) == 0, "no speech → nothing to keep")
+
+// MARK: Repetition loops
+
+check(RepetitionFilter.collapse("This is a test. Theair of Ourevra. Theair of Ourevra. Theair of Ourevra. Theair of Ourevra. Done.")
+      == "This is a test. Theair of Ourevra. Done.", "a loop collapses to one sentence")
+check(RepetitionFilter.collapse("No. No. I said yes.") == "No. No. I said yes.", "two in a row is kept")
+check(RepetitionFilter.collapse("One. Two. Three.") == "One. Two. Three.", "normal text is unchanged")
+check(RepetitionFilter.lastSentence(of: "First part. Second part, which matters.") == "Second part, which matters.",
+      "context is the last sentence")
+check(RepetitionFilter.lastSentence(of: String(repeating: "a", count: 300)).count == 120, "context is capped")
+
 print(failures == 0 ? "✓ all \(checks) checks passed" : "\(failures) of \(checks) checks failed")
 exit(failures == 0 ? 0 : 1)

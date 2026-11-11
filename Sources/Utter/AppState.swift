@@ -38,6 +38,8 @@ final class AppState: ObservableObject {
     @Published var level: Float = 0
     @Published var handsFree = false
     @Published var barHovering = false
+    /// The menu bar panel is open: the notch shouldn't open on top of it.
+    var menuPanelOpen = false
     @Published var isMuted = false
     @Published var barStyle: Prefs.BarStyle = Prefs.barStyle
     @Published var confirmPurpose = ""

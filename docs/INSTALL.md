@@ -110,6 +110,8 @@ Click into any text field, hold **Left ⌃ + Left ⌥**, say something, and let 
 | Symptom | Fix |
 |---|---|
 | Nothing happens when holding the hotkey | Accessibility isn't on, or Utter is muted (menu bar → Unmute) |
+| Wrong words, or text in the wrong language | Settings → AI & dictation → Speech language: pick yours instead of System default |
+| "Didn't catch that" | Utter heard no speech (only silence or background noise), so nothing was typed. Speak a little closer to the microphone |
 | Text is copied but not typed | Accessibility isn't on |
 | "Whisper isn't installed" | Settings → AI & dictation → Install Whisper |
 | Whisper fails to start | Settings → AI & dictation → Restart; the log is `~/Library/Application Support/Utter/whisper.log` |

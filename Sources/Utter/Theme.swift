@@ -122,6 +122,34 @@ struct SectionLabel: View {
     }
 }
 
+/// Hover state for views (an ObservableObject because @State needs full Xcode here).
+final class HoverFlag: ObservableObject {
+    @Published var on = false
+}
+
+/// Makes a control feel alive under the pointer: a soft glow in `color`, a
+/// slight lift, and a little extra brightness.
+struct HoverGlow: ViewModifier {
+    var color: Color
+    var lift: CGFloat
+    @StateObject private var hover = HoverFlag()
+
+    func body(content: Content) -> some View {
+        content
+            .brightness(hover.on ? 0.06 : 0)
+            .shadow(color: color.opacity(hover.on ? 0.6 : 0), radius: hover.on ? 12 : 0)
+            .scaleEffect(hover.on ? lift : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: hover.on)
+            .onHover { hover.on = $0 }
+    }
+}
+
+extension View {
+    func hoverGlow(_ color: Color = Theme.violet, lift: CGFloat = 1.04) -> some View {
+        modifier(HoverGlow(color: color, lift: lift))
+    }
+}
+
 struct BrandButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -132,6 +160,7 @@ struct BrandButtonStyle: ButtonStyle {
             .background(Capsule().fill(LinearGradient(colors: [Theme.violet, Theme.magenta], startPoint: .leading, endPoint: .trailing)))
             .opacity(configuration.isPressed ? 0.75 : 1)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .hoverGlow(Theme.magenta)
     }
 }
 
@@ -142,6 +171,8 @@ struct SoftButtonStyle: ButtonStyle {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Capsule().fill(Color.primary.opacity(configuration.isPressed ? 0.14 : 0.07)))
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
+            .hoverGlow(Theme.violet)
     }
 }
 
@@ -238,6 +269,7 @@ struct HistoryRow: View {
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
         }
         .buttonStyle(.plain)
+        .hoverGlow(Theme.colors(for: item.mode)[0], lift: 1.01)
         .help("Click to copy")
     }
 

@@ -39,6 +39,7 @@ enum SettingsWindow {
     private static var window: NSWindow?
 
     static func show(page: SettingsPage? = nil) {
+        StatusItemController.shared.closePopover()
         if let page { SettingsRouter.shared.page = page }
         if window == nil {
             let w = NSWindow(

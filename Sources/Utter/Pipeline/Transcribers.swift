@@ -90,7 +90,13 @@ final class WhisperTranscriber: Transcriber {
         guard end - sent >= PCM16Recorder.sampleRate * 5 else { return } // cheap early exit
         let pending = recorder.samples(sent..<end)
         guard let cut = PauseChunker.cut(pending[...]) else { return }
-        enqueue(Array(pending[0..<cut]))
+        // Silence or background noise is never sent: Whisper invents text for it.
+        // It still marks a hard break, so text on either side isn't merged.
+        if SpeechDetector.containsSpeech(pending[0..<cut]) {
+            enqueue(Array(pending[0..<cut]))
+        } else {
+            enqueueBreak()
+        }
         sent += cut
     }
 
@@ -99,9 +105,24 @@ final class WhisperTranscriber: Transcriber {
         chain = Task { @MainActor in
             var texts = try await previous?.value ?? []
             try Task.checkCancellation()
-            texts.append(try await Self.transcribe(samples, context: texts.last))
+            texts.append(try await Self.transcribe(samples, context: Self.context(texts)))
             return texts
         }
+    }
+
+    private func enqueueBreak() {
+        let previous = chain
+        chain = Task { @MainActor in
+            var texts = try await previous?.value ?? []
+            if texts.last != ChunkJoiner.hardBreak { texts.append(ChunkJoiner.hardBreak) }
+            return texts
+        }
+    }
+
+    /// The previous chunk's text, unless a stretch without speech came between.
+    private static func context(_ texts: [String]) -> String? {
+        guard let last = texts.last, last != ChunkJoiner.hardBreak else { return nil }
+        return last
     }
 
     func transcribe(_ capture: SpeechEngine.Result, progress: (String) -> Void) async throws -> String {
@@ -127,16 +148,23 @@ final class WhisperTranscriber: Transcriber {
         do {
             // Finish the chunks already in flight, then the remainder.
             var texts = try await chain?.value ?? []
+            // The remainder, without trailing silence or noise (where Whisper
+            // tends to invent words), and only if it contains speech.
             let rest = recorder.samples(sent..<recorder.count)
-            if rest.count >= PCM16Recorder.sampleRate / 3 {
-                texts.append(try await Self.transcribe(rest, context: texts.last))
+            let speechEnd = SpeechDetector.endOfSpeech(rest[...])
+            if speechEnd > 0, SpeechDetector.containsSpeech(rest[0..<speechEnd]) {
+                texts.append(try await Self.transcribe(Array(rest[0..<speechEnd]), context: Self.context(texts)))
             }
-            let text = texts.filter { !$0.isEmpty }.joined(separator: " ")
+            // Repair false sentence breaks at seams, then break any repetition loop.
+            let text = RepetitionFilter.collapse(ChunkJoiner.join(texts))
             return text.isEmpty ? fallback : text
         } catch {
             // A chunk failed: try the whole recording once before giving up.
-            if let text = try? await Self.transcribe(recorder.samples(0..<recorder.count), context: nil), !text.isEmpty {
-                return text
+            let all = recorder.samples(0..<recorder.count)
+            let speechEnd = SpeechDetector.endOfSpeech(all[...])
+            if speechEnd > 0,
+               let text = try? await Self.transcribe(Array(all[0..<speechEnd]), context: nil), !text.isEmpty {
+                return RepetitionFilter.collapse(text)
             }
             if !fallback.isEmpty { return fallback }
             throw TranscriptionError(message: "Whisper failed: \(error.localizedDescription)")
@@ -144,13 +172,14 @@ final class WhisperTranscriber: Transcriber {
     }
 
     /// One request to the sidecar. The prompt carries the personal dictionary
-    /// (spellings) and the end of the previous chunk (continuity).
+    /// (spellings) and the last sentence of the previous chunk (continuity).
+    /// Context is kept short: a long prompt makes Whisper more likely to echo it.
     private static func transcribe(_ samples: [Int16], context: String?) async throws -> String {
         let wav = try PCM16Recorder.writeWAV(samples)
         defer { try? FileManager.default.removeItem(at: wav) }
         var prompt = Prefs.dictionaryWords.joined(separator: ", ")
         if let context, !context.isEmpty {
-            prompt += (prompt.isEmpty ? "" : ". ") + String(context.suffix(200))
+            prompt += (prompt.isEmpty ? "" : ". ") + RepetitionFilter.lastSentence(of: context)
         }
         return try await WhisperSidecar.shared.transcribe(
             wav: wav, language: Prefs.whisperLanguage, prompt: prompt.isEmpty ? nil : prompt
