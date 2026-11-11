@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Utter</string>
+    <key>CFBundleDisplayName</key>
+    <string>Utter</string>
+    <key>CFBundleExecutable</key>
+    <string>Utter</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.utter.Utter</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Utter listens while you hold the dictation or command key.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Utter turns your speech into text.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Utter controls apps like Reminders, Notes and System Events when you ask it to.</string>
+</dict>
+</plist>

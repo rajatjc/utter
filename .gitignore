@@ -1,0 +1,37 @@
+# Build output (also contains machine-specific paths)
+.build/
+build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/
+*.dmg
+
+# Local Whisper environment and runtime files, if ever created inside the repo
+whisper-env/
+*.port
+*.log
+
+# Secrets and signing material: never commit
+.env
+.env.*
+*.p12
+*.pem
+*.cer
+*.key
+*.mobileprovision
+*.keychain*
+
+# Personal, machine-only notes and scratch output
+*.local
+*.local.*
+local/
+scratch/
+snapshots/
+
+# Editors, AI assistants and the OS
+.vscode/
+.idea/
+.claude/
+.cursor/
+*.swp
+.DS_Store
