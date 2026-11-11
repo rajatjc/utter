@@ -12,6 +12,8 @@ enum Phase: Equatable {
     case notice(String)
     /// A command is waiting for the user to approve it (payload: the command).
     case confirm(String)
+    /// Offering to add a corrected word to the dictionary (payload: the word).
+    case suggest(String)
 }
 
 struct HistoryItem: Codable, Identifiable {
@@ -76,6 +78,10 @@ final class AppState: ObservableObject {
     private var work: Task<Void, Never>?
     /// Chosen when a session starts, so a settings change mid-session can't mix engines.
     private var transcriber: Transcriber?
+    /// Text around the cursor when dictation started (for fitting the result in).
+    private var cursor: CursorContext?
+    /// The last typed dictation, so "scratch that" said on its own can undo it.
+    private var lastInsertion: (app: NSRunningApplication?, date: Date)?
 
     var menuBarSymbol: String {
         switch phase {
@@ -98,6 +104,8 @@ final class AppState: ObservableObject {
 
     func start() {
         history = HistoryStore.load()
+        applyHistoryRetention()
+        CorrectionWatcher.shared.onSuggestion = { [weak self] word in self?.suggest(word) }
         Permissions.requestAll { [weak self] in self?.refreshPermissions() }
         refreshPermissions()
 
@@ -119,6 +127,20 @@ final class AppState: ObservableObject {
         Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshPermissions() }
         }
+        // Free Whisper's memory after a while without dictating.
+        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let busy: Bool = {
+                    switch self.phase {
+                    case .listening, .processing: return true
+                    default: return false
+                    }
+                }()
+                WhisperSidecar.shared.unloadIfIdle(busy: busy)
+                ParakeetEngine.shared.unloadIfIdle(busy: busy)
+            }
+        }
     }
 
     /// Set by Snapshots so rendered screens keep their sample permissions.
@@ -129,14 +151,18 @@ final class AppState: ObservableObject {
     private func applySpeechEngine() {
         let sidecar = WhisperSidecar.shared
         switch Prefs.speechEngine {
-        case .whisper: if sidecar.status == .off, sidecar.isInstalled { sidecar.ensureRunning() }
+        case .whisper:
+            if sidecar.status == .off, sidecar.isInstalled, !sidecar.unloadedForIdle { sidecar.ensureRunning() }
+        case .parakeet:
+            if sidecar.status != .off { sidecar.stop() }
+            if ParakeetEngine.shared.isInstalled { ParakeetEngine.shared.prepare() }
         case .apple: if sidecar.status != .off { sidecar.stop() }
         }
     }
 
     func refreshPermissions() {
         guard !frozenPermissions else { return }
-        let installed = !WhisperPaths.isSupported || WhisperPaths.python() != nil
+        let installed = ParakeetEngine.shared.isInstalled || (WhisperPaths.isSupported && WhisperPaths.python() != nil)
         if installed != whisperInstalled { whisperInstalled = installed }
         let new = Permissions.current()
         guard new != permissions else { return }
@@ -153,8 +179,19 @@ final class AppState: ObservableObject {
             hotkeys.reset()
             return notice("Muted. Click the mic icon on the bar to unmute.")
         }
+        guard LicenseManager.shared.canDictate else {
+            hotkeys.reset()
+            SettingsWindow.show(page: .license)
+            return fail("Your free trial has ended. Add a license in Settings → License.")
+        }
         work?.cancel()
+        CorrectionWatcher.shared.stop()
+        // Whisper was unloaded to save memory: it reloads (~1 s) while you talk.
+        let sidecar = WhisperSidecar.shared
+        if Prefs.speechEngine == .whisper, sidecar.status == .off, sidecar.isInstalled { sidecar.ensureRunning() }
+        if Prefs.speechEngine == .parakeet { ParakeetEngine.shared.prepare() }
         (focus, targetApp) = FocusContext.capture(includeWindowTitle: Prefs.sendWindowTitle)
+        cursor = mode == .dictation && Prefs.useCursorContext ? CursorContext.capture() : nil
         selectionAtStart = mode == .command ? TextIO.selectionViaAX() : .none
         liveTranscript = ""
         step = ""
@@ -184,6 +221,10 @@ final class AppState: ObservableObject {
             )
             phase = .listening(mode)
             hud.show()
+            if Prefs.soundsEnabled {
+                Sounds.playStart()
+                speech.liveRecorder?.silenceLeading(seconds: Sounds.startChimeLength)
+            }
             // Streaming transcribers start on the recording while the user talks.
             transcriber.begin(recording: speech.liveRecorder)
             if mode == .dictation, Prefs.dictationEngine == .apple { LocalModel.warmUp() }
@@ -198,6 +239,8 @@ final class AppState: ObservableObject {
         phase = .processing(mode)
         handsFree = false
         level = 0
+        Sounds.playStop()
+        let spoken = Date().timeIntervalSince(listeningSince)
         work = Task { [weak self] in
             guard let self else { return }
             let capture = await speech.stop()
@@ -214,7 +257,7 @@ final class AppState: ObservableObject {
             }
             self.liveTranscript = transcript
             switch mode {
-            case .dictation: await self.runDictation(transcript)
+            case .dictation: await self.runDictation(transcript, spoken: spoken)
             case .command: await self.runCommand(transcript)
             }
         }
@@ -281,26 +324,77 @@ final class AppState: ObservableObject {
     // MARK: Modes
 
     /// Dictation pipeline: transcript → cleaner → inserter.
-    private func runDictation(_ transcript: String) async {
+    /// Dictation pipeline: voice commands → cleaner → fit to the cursor → inserter.
+    private func runDictation(_ transcript: String, spoken: TimeInterval) async {
+        // Spoken edits first: "scratch that", "new paragraph", "make that a list".
+        let edit = VoiceEditor.apply(transcript)
+        if edit.undoPrevious { return undoLastDictation() }
+        let source = edit.text
+        guard !source.isEmpty else { return complete("Nothing to insert.") }
+
         let cleaner = Cleaners.current(hasAPIKey: hasAPIKey)
         var output: String
         var note: String?
         step = "Polishing…"
         do {
-            output = try await cleaner.clean(transcript, context: focus)
+            output = try await cleaner.clean(source, context: focus)
         } catch {
-            output = BasicCleaner.clean(transcript, snippets: Prefs.snippets)
+            output = BasicCleaner.clean(source, snippets: Prefs.snippets)
             note = "Inserted without AI cleanup: \(error.localizedDescription)"
         }
-        guard !output.isEmpty else { return complete("Nothing to insert.") }
+        // Keep the line breaks and bullets the user asked for, even if a model flattened them.
+        if source.filter({ $0 == "\n" }).count > output.filter({ $0 == "\n" }).count {
+            output = BasicCleaner.clean(source, snippets: Prefs.snippets)
+        }
+        if let cursor { output = cursor.fit(output) }
+        guard !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return complete("Nothing to insert.") }
 
         record(.dictation, transcript, output)
+        let words = output.split(whereSeparator: { $0.isWhitespace }).filter { $0 != "•" }.count
+        StatsStore.shared.record(words: words, seconds: spoken)
         switch Inserter.insert(output, into: targetApp, canType: permissions.accessibility) {
         case .typed:
-            complete(note ?? "Inserted \(output.split(separator: " ").count) words", linger: note == nil ? 1.4 : 4)
+            lastInsertion = (targetApp, Date())
+            CorrectionWatcher.shared.watch(output, context: cursor)
+            complete(note ?? "Inserted \(words) words", linger: note == nil ? 1.4 : 4)
         case .copiedToClipboard:
             complete("Copied to clipboard. Turn on Accessibility so Utter can type for you.", linger: 5)
         }
+    }
+
+    /// "Scratch that" said on its own: undo the previous dictation in its app.
+    private func undoLastDictation() {
+        guard let last = lastInsertion, Date().timeIntervalSince(last.date) < 600, permissions.accessibility else {
+            return complete("Nothing to undo.")
+        }
+        CorrectionWatcher.shared.stop()
+        if let app = last.app, NSWorkspace.shared.frontmostApplication != app { app.activate() }
+        _ = Keyboard.pressShortcut("cmd+z")
+        lastInsertion = nil
+        complete("Removed your last dictation", linger: 1.4)
+    }
+
+    // MARK: Learning words
+
+    private func suggest(_ word: String) {
+        guard case .idle = phase else { return }
+        phase = .suggest(word)
+        hud.show()
+        hud.settle(after: 10)
+        scheduleIdle(after: 10)
+    }
+
+    func acceptSuggestion() {
+        guard case .suggest(let word) = phase else { return }
+        Prefs.addToDictionary(word)
+        complete("Added “\(word)” to your dictionary", linger: 1.6)
+    }
+
+    func declineSuggestion() {
+        guard case .suggest(let word) = phase else { return }
+        Prefs.declinedWords.insert(word.lowercased())
+        phase = .idle
+        hud.settle(after: 0)
     }
 
     private func runCommand(_ transcript: String) async {
@@ -337,8 +431,18 @@ final class AppState: ObservableObject {
     }
 
     private func record(_ mode: Mode, _ transcript: String, _ output: String) {
-        history.insert(HistoryItem(mode: mode, transcript: transcript, output: output, app: focus.appName), at: 0)
-        if history.count > 200 { history.removeLast(history.count - 200) }
+        if Prefs.historyRetention != .off {
+            history.insert(HistoryItem(mode: mode, transcript: transcript, output: output, app: focus.appName), at: 0)
+            if history.count > 200 { history.removeLast(history.count - 200) }
+        }
+        applyHistoryRetention()
+    }
+
+    /// Drops history older than the chosen retention (Settings → History) and saves.
+    func applyHistoryRetention() {
+        if let cutoff = Prefs.historyRetention.cutoff(now: Date()) {
+            history.removeAll { $0.date < cutoff }
+        }
         HistoryStore.save(history)
     }
 

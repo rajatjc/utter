@@ -22,13 +22,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             #if DEBUG
             // Developer tools (debug builds only): --snapshot <dir>, --probe-speech <file>,
-            // --probe-whisper-stream <file>.
+            // --probe-whisper-stream <file>, --probe-parakeet <file>.
             if Snapshots.runIfRequested() {
                 NSApp.terminate(nil)
                 return
             }
             if SpeechProbe.runIfRequested() { return } // exits when done
             if StreamProbe.runIfRequested() { return } // exits when done
+            if ParakeetProbe.runIfRequested() { return } // exits when done
             #endif
             AppState.shared.start()
             StatusItemController.shared.install(state: AppState.shared)

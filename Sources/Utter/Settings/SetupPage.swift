@@ -30,13 +30,16 @@ struct SetupPage: View {
             StepRow(number: 3, title: "Accessibility",
                     detail: "Lets Utter notice the hotkeys and type into other apps.",
                     done: state.permissions.accessibility, actionTitle: "Open Settings") { Permissions.open(.accessibility) }
-            StepRow(number: 4, title: "Whisper speech recognition",
-                    detail: WhisperPaths.isSupported
-                        ? "Accurate, private transcription on this Mac. One-time download of about 3 GB."
-                        : "Needs an Apple Silicon Mac. This Mac uses Apple's built-in recognizer instead.",
-                    done: state.whisperInstalled, actionTitle: "Install") {
-                WhisperSidecar.shared.install()
+            StepRow(number: 4, title: "Speech model",
+                    detail: "Accurate, private transcription on this Mac's Neural Engine. One-time download of about 500 MB.",
+                    done: state.whisperInstalled, actionTitle: "Download") {
+                UserDefaults.standard.set(Prefs.SpeechEngine.parakeet.rawValue, forKey: Prefs.speechEngineKey)
+                ParakeetEngine.shared.prepare()
                 SettingsRouter.shared.page = .claude
+            }
+
+            if state.permissions.microphone, state.permissions.accessibility {
+                TryItBox()
             }
 
             if state.setupStepsDone == 4 {
@@ -112,3 +115,41 @@ private struct StepRow: View {
     }
 }
 
+
+final class TryItText: ObservableObject {
+    @Published var text = ""
+}
+
+/// A box to dictate into right here, before trying it in other apps.
+private struct TryItBox: View {
+    @StateObject private var model = TryItText()
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Try it").font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                    if !model.text.isEmpty {
+                        Button("Clear") { model.text = "" }.buttonStyle(SoftButtonStyle())
+                    }
+                }
+                ZStack(alignment: .topLeading) {
+                    if model.text.isEmpty {
+                        Text("Click here, hold \(Prefs.hotkey(for: .dictation).label), say a sentence, then let go. Try “scratch that” or “new paragraph” too.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 8)
+                    }
+                    TextEditor(text: $model.text)
+                        .font(.system(size: 13))
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                }
+                .frame(height: 90)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.05)))
+            }
+        }
+    }
+}

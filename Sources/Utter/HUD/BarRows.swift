@@ -47,7 +47,7 @@ struct SessionRow: View {
         guard state.sessionMode == .dictation, !state.livePreview else { return false }
         switch state.phase {
         case .listening, .processing, .done, .failed, .notice: return true
-        case .idle, .confirm: return false
+        case .idle, .confirm, .suggest: return false
         }
     }
 
@@ -139,6 +139,12 @@ struct SessionRow: View {
                 .help("Run")
                 BarIconButton(symbol: "xmark") { state.cancel() }
                     .help("Cancel")
+            }
+            if state.hudIsSuggesting {
+                BarIconButton(symbol: "plus", colors: [Theme.violet, Theme.magenta]) { state.acceptSuggestion() }
+                    .help("Add to dictionary")
+                BarIconButton(symbol: "xmark") { state.declineSuggestion() }
+                    .help("Not now")
             }
         }
         .padding(.trailing, 6)

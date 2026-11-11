@@ -81,7 +81,22 @@ final class WhisperSidecar: ObservableObject {
     var logURL: URL { WhisperPaths.supportDirectory.appendingPathComponent("whisper.log") }
     private var portFile: URL { WhisperPaths.supportDirectory.appendingPathComponent("whisper.port") }
 
+    /// Last time Whisper was used (for freeing memory when idle).
+    private(set) var lastUsed = Date()
+    /// Whisper was stopped to free memory; it restarts when dictation begins.
+    private(set) var unloadedForIdle = false
+
+    /// Stops Whisper after `Prefs.idleMinutes` without use, freeing ~1.7 GB.
+    func unloadIfIdle(busy: Bool) {
+        guard Prefs.freeMemoryWhenIdle, !busy, status == .ready,
+              Date().timeIntervalSince(lastUsed) > Prefs.idleMinutes * 60 else { return }
+        stop()
+        unloadedForIdle = true
+    }
+
     func ensureRunning() {
+        unloadedForIdle = false
+        lastUsed = Date()
         if let process, process.isRunning { return }
         if case .installing = status { return }
         startToken += 1
@@ -241,6 +256,7 @@ final class WhisperSidecar: ObservableObject {
     }
 
     func transcribe(wav: URL, language: String?, prompt: String?) async throws -> String {
+        lastUsed = Date()
         guard var request = request("/transcribe", timeout: 60) else {
             throw TranscriptionError(message: "Whisper isn't running")
         }

@@ -52,7 +52,7 @@ public enum BasicCleaner {
         for pattern in ["\\bum+\\b,?", "\\buh+\\b,?", "\\berm\\b,?", "\\bhmm+\\b,?"] {
             text = text.replacingOccurrences(of: pattern, with: "", options: [.regularExpression, .caseInsensitive])
         }
-        text = text.replacingOccurrences(of: "\\s{2,}", with: " ", options: .regularExpression)
+        text = text.replacingOccurrences(of: "[ \\t]{2,}", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         text = Snippet.expand(text, with: snippets)
         guard let first = text.first else { return text }

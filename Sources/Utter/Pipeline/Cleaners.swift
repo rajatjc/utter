@@ -50,6 +50,8 @@ struct ClaudeCleaner: TextCleaner {
     they name. Spoken punctuation ("comma", "question mark") becomes the symbol when the speaker \
     clearly means it that way.
     - When the speaker lists several items, format them as a list if the destination suits it.
+    - The transcript may already contain line breaks and "• " bullets from voice commands. Keep \
+    them where they are.
     - Spell names and terms from the personal dictionary exactly as written there.
     - When the speaker says a snippet trigger, replace it with that snippet's expansion.
     - Follow the destination's style note.

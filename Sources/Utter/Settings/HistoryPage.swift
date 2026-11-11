@@ -6,6 +6,7 @@ import SwiftUI
 
 struct HistoryPage: View {
     @EnvironmentObject var state: AppState
+    @AppStorage(Prefs.historyRetentionKey) private var retention = HistoryRetention.forever.rawValue
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -15,6 +16,23 @@ struct HistoryPage: View {
                 if !state.history.isEmpty {
                     Button("Clear") { state.clearHistory() }.buttonStyle(SoftButtonStyle())
                 }
+            }
+            Card(padding: 4) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Keep history").font(.system(size: 13, weight: .medium))
+                        Text("Older dictations are deleted automatically. Stats are kept either way (counts only).")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Picker("", selection: $retention) {
+                        ForEach(HistoryRetention.allCases, id: \.self) { Text($0.label).tag($0.rawValue) }
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                    .onChange(of: retention) { _, _ in state.applyHistoryRetention() }
+                }
+                .padding(12)
             }
             if state.history.isEmpty {
                 Card {

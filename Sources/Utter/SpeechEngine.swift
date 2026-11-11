@@ -165,7 +165,22 @@ final class PCM16Recorder: @unchecked Sendable {
 
     func append<S: Sequence>(_ samples: S) where S.Element == Int16 {
         lock.lock()
+        let start = pcm.count
         pcm.append(contentsOf: samples)
+        if start < silenceUntil {
+            for i in start..<min(silenceUntil, pcm.count) { pcm[i] = 0 }
+        }
+        lock.unlock()
+    }
+
+    private var silenceUntil = 0
+
+    /// Replaces the first `seconds` of the recording with silence (the start
+    /// chime plays then; it must not be transcribed).
+    func silenceLeading(seconds: Double) {
+        lock.lock()
+        silenceUntil = Int(seconds * Double(Self.sampleRate))
+        for i in 0..<min(silenceUntil, pcm.count) { pcm[i] = 0 }
         lock.unlock()
     }
 

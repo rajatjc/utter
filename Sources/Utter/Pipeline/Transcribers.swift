@@ -23,8 +23,12 @@ protocol Transcriber: AnyObject {
 
 @MainActor
 enum Transcribers {
-    /// Whisper when it's selected and hasn't failed, else Apple's recognizer.
+    /// The selected model unless it has failed, else Apple's recognizer.
     static func current() -> Transcriber {
+        if Prefs.speechEngine == .parakeet {
+            if case .failed = ParakeetEngine.shared.status { return AppleTranscriber() }
+            return ParakeetTranscriber()
+        }
         if Prefs.speechEngine == .whisper {
             switch WhisperSidecar.shared.status {
             case .failed, .installing: break

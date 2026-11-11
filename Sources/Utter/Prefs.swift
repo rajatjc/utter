@@ -15,6 +15,7 @@ enum Prefs {
     enum SpeechEngine: String {
         case apple    // SFSpeechRecognizer: built in, live partial results
         case whisper  // Whisper large-v3-turbo via the local mlx-whisper sidecar
+        case parakeet // NVIDIA Parakeet v3 on the Neural Engine, built in (FluidAudio)
     }
 
     static let speechEngineKey = "speechEngine"
@@ -26,7 +27,8 @@ enum Prefs {
         if let raw = defaults.string(forKey: speechEngineKey), let engine = SpeechEngine(rawValue: raw) {
             return engine
         }
-        return WhisperPaths.python() != nil ? .whisper : .apple
+        // Existing Whisper setups keep Whisper; everyone else gets the built-in model.
+        return WhisperPaths.python() != nil ? .whisper : .parakeet
     }
 
     /// With Whisper, run Apple's recognizer too just for a live text preview.
@@ -148,6 +150,40 @@ enum Prefs {
             return Locale(identifier: id)
         }
         return Locale.current
+    }
+
+    // MARK: Feedback, learning, memory, history
+
+    static let soundsKey = "soundsEnabled"
+    static var soundsEnabled: Bool { defaults.object(forKey: soundsKey) as? Bool ?? true }
+
+    static let learnKey = "learnFromCorrections"
+    static var learnFromCorrections: Bool { defaults.object(forKey: learnKey) as? Bool ?? true }
+
+    static let contextKey = "useCursorContext"
+    static var useCursorContext: Bool { defaults.object(forKey: contextKey) as? Bool ?? true }
+
+    /// Words the user said no to adding, so they aren't offered again.
+    static var declinedWords: Set<String> {
+        get { Set(defaults.stringArray(forKey: "declinedWords") ?? []) }
+        set { defaults.set(Array(newValue), forKey: "declinedWords") }
+    }
+
+    static func addToDictionary(_ word: String) {
+        var words = dictionaryWords
+        guard !words.contains(where: { $0.caseInsensitiveCompare(word) == .orderedSame }) else { return }
+        words.append(word)
+        defaults.set(words.joined(separator: "\n"), forKey: dictionaryKey)
+    }
+
+    static let freeMemoryKey = "freeMemoryWhenIdle"
+    static var freeMemoryWhenIdle: Bool { defaults.object(forKey: freeMemoryKey) as? Bool ?? true }
+    /// Minutes without dictating before Whisper is unloaded.
+    static let idleMinutes: Double = 10
+
+    static let historyRetentionKey = "historyRetention"
+    static var historyRetention: HistoryRetention {
+        HistoryRetention(rawValue: defaults.string(forKey: historyRetentionKey) ?? "") ?? .forever
     }
 
     /// One custom word or name per line (product names, people, jargon).

@@ -21,6 +21,7 @@ enum Snapshots {
         // Menu bar panel: before and after setup.
         state.permissions = Permissions.Status(microphone: true, speech: true, accessibility: false)
         state.hasAPIKey = false
+        StatsStore.shared.useDemoData()
         render(MenuContent().environmentObject(state), to: dir, "menu-setup")
         state.permissions = Permissions.Status(microphone: true, speech: true, accessibility: true)
         state.hasAPIKey = true

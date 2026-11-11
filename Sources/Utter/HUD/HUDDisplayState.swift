@@ -24,6 +24,7 @@ extension AppState {
         case .failed: "failed"
         case .notice: "notice"
         case .confirm: "confirm"
+        case .suggest: "suggest"
         }
     }
 
@@ -33,6 +34,7 @@ extension AppState {
         case .done: [Theme.mint, Color(red: 0.25, green: 0.75, blue: 0.85)]
         case .failed, .notice: [Theme.amber, Theme.coral]
         case .confirm: [Theme.violet, Theme.amber]
+        case .suggest: [Theme.violet, Theme.magenta]
         case .idle: Theme.brandColors
         }
     }
@@ -45,12 +47,18 @@ extension AppState {
         case .failed: "exclamationmark"
         case .notice: "mic.slash.fill"
         case .confirm: "terminal.fill"
+        case .suggest: "character.book.closed.fill"
         default: "waveform"
         }
     }
 
     var hudIsConfirming: Bool {
         if case .confirm = phase { return true }
+        return false
+    }
+
+    var hudIsSuggesting: Bool {
+        if case .suggest = phase { return true }
         return false
     }
 
@@ -66,6 +74,7 @@ extension AppState {
         case .failed: "HMM"
         case .notice: "MUTED"
         case .confirm: confirmPurpose.isEmpty ? "RUN IN TERMINAL?" : "RUN IN TERMINAL? · \(confirmPurpose.uppercased())"
+        case .suggest: "ADD TO YOUR DICTIONARY?"
         case .idle: ""
         }
     }
@@ -92,6 +101,8 @@ extension AppState {
             step.isEmpty ? liveTranscript : step
         case .done(let message), .failed(let message), .notice(let message), .confirm(let message):
             message
+        case .suggest(let word):
+            "“\(word)”, so it's spelled right next time"
         case .idle:
             ""
         }

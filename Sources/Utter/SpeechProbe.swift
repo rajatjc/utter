@@ -115,4 +115,46 @@ enum StreamProbe {
         exit(0)
     }
 }
+
+/// Developer aid: `Utter --probe-parakeet <16 kHz mono WAV>` downloads and
+/// loads Parakeet if needed, then transcribes the file the way a dictation is
+/// transcribed on release, printing the load time, the wait and the text.
+@MainActor
+enum ParakeetProbe {
+    static func runIfRequested() -> Bool {
+        let args = CommandLine.arguments
+        guard let i = args.firstIndex(of: "--probe-parakeet"), i + 1 < args.count else { return false }
+        setvbuf(stdout, nil, _IONBF, 0)
+        let url = URL(fileURLWithPath: args[i + 1])
+        Task { @MainActor in await run(url) }
+        return true
+    }
+
+    private static func run(_ url: URL) async {
+        let engine = ParakeetEngine.shared
+        var started = Date()
+        engine.prepare()
+        while !engine.isReady {
+            if case .failed(let reason) = engine.status { print("Parakeet failed: \(reason)"); exit(1) }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        print(String(format: "download + load: %.1f s", Date().timeIntervalSince(started)))
+        guard let file = try? AVAudioFile(forReading: url, commonFormat: .pcmFormatInt16, interleaved: true),
+              file.processingFormat.sampleRate == 16000, file.processingFormat.channelCount == 1,
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
+              (try? file.read(into: buffer)) != nil, let data = buffer.int16ChannelData
+        else { print("need a 16 kHz mono WAV"); exit(1) }
+        let samples = Array(UnsafeBufferPointer(start: data[0], count: Int(buffer.frameLength)))
+        print(String(format: "audio: %.1f s", Double(samples.count) / 16000))
+        let recorder = PCM16Recorder()
+        recorder.append(samples[...])
+        for run in 1...2 { // the first call warms up the Neural Engine
+            started = Date()
+            let text = (try? await ParakeetTranscriber().transcribe(SpeechEngine.Result(text: "", recorder: recorder)) { _ in }) ?? "(failed)"
+            print(String(format: "run %d: %.2f s after release", run, Date().timeIntervalSince(started)))
+            if run == 2 { print("TEXT: \(text)") }
+        }
+        exit(0)
+    }
+}
 #endif

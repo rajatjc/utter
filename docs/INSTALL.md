@@ -9,26 +9,27 @@
 | Mac | Any Mac that runs macOS 14, Intel or Apple Silicon | Apple Silicon (M1 or later) |
 | macOS | 14 Sonoma | 26 or later, with Apple Intelligence turned on |
 | Memory (RAM) | 8 GB | 16 GB or more |
-| Free disk space | 10 MB (Intel, no Whisper) | 4 GB (app, Whisper and its model, plus headroom) |
-| Internet | Only for the one-time Whisper download | |
+| Free disk space | 600 MB (app and Parakeet) | 4 GB (to add Whisper too) |
+| Internet | Only for the one-time model download | |
 
 ### What each part needs
 
 | Part | Memory while running | Disk | Needs |
 |---|---|---|---|
-| Utter app | about 110 MB | about 3 MB | macOS 14+ (universal: runs on Intel and Apple Silicon) |
-| Whisper speech recognition | about 1.7 GB, loaded for as long as Utter runs | about 2.9 GB: Python packages 1.3 GB in `~/Library/Application Support/Utter`, model 1.6 GB in `~/.cache/huggingface` | Apple Silicon, Python 3.10+ (`brew install python`), one-time download |
+| Utter app | about 110 MB | about 16 MB | macOS 14+ (universal: runs on Intel and Apple Silicon) |
+| Parakeet speech recognition (default) | Utter with Parakeet loaded: about 200 MB in total | 471 MB in `~/Library/Application Support/Utter` | macOS 14+, one-time download inside the app. English and 24 other European languages |
+| Whisper speech recognition (optional) | about 1.7 GB, loaded for as long as Utter runs | about 2.9 GB: Python packages 1.3 GB in `~/Library/Application Support/Utter`, model 1.6 GB in `~/.cache/huggingface` | Apple Silicon, Python 3.10+ (`brew install python`), one-time download |
 | On-device cleanup (fillers, punctuation, tone) | managed by macOS | Apple Intelligence's own models, downloaded by macOS | macOS 26+, Apple Silicon, Apple Intelligence turned on |
 | Apple's built-in recognizer (fallback) | small | none | Siri & Dictation turned on |
 | Claude (optional) | none extra | none | An Anthropic API key and an internet connection |
 
-Utter's own footprint with Whisper is about **1.8 GB of memory and 3 GB of disk**. On an 8 GB Mac that's a noticeable share of memory, so 16 GB is recommended if you keep many apps open. Utter hasn't been tested on an 8 GB Mac yet.
+With Parakeet, Utter uses about **200 MB of memory and 500 MB of disk**. Whisper raises that to about 1.8 GB of memory and 3 GB of disk, so it's only worth adding for languages Parakeet doesn't cover. Either model is unloaded after 10 idle minutes and reloads when you start talking (Settings → AI & dictation → Free memory when idle). Utter hasn't been tested on an 8 GB Mac yet.
 
 ### What works on which Mac
 
 | | Apple Silicon, macOS 26+ | Apple Silicon, macOS 14–15 | Intel Mac |
 |---|---|---|---|
-| Speech recognition | Whisper | Whisper | Apple's built-in recognizer |
+| Speech recognition | Parakeet or Whisper | Parakeet or Whisper | Parakeet (untested on Intel) or Apple's built-in recognizer |
 | Cleanup | On-device model | Basic (fillers, capitalization, snippets), or Claude | Basic, or Claude |
 | Command mode | With an API key | With an API key | With an API key |
 
@@ -41,13 +42,15 @@ Utter works on every screen size and display scaling, including built-in, extern
 
 ### Speed
 
-Utter transcribes while you talk: each time you pause naturally, the audio so far is sent to Whisper in the background. When you let go, only the last few seconds are left, so the wait is about the same however long you talk. Measured on an M3 Pro with Whisper large-v3-turbo:
+Measured on an M3 Pro, as the wait after you let go:
 
-| Dictation | Wait after you let go |
-|---|---|
-| 7 seconds | about 0.7 s |
-| 30 seconds | about 0.6 s (1.1 s without streaming) |
-| 70 seconds | about 0.7 s (2.8 s without streaming) |
+| Dictation | Parakeet | Whisper turbo |
+|---|---|---|
+| 19 seconds | 0.28 s | about 0.6 s |
+| 30 seconds | 0.34 s | about 0.6 s |
+| 70 seconds | 0.64 s | about 0.7 s |
+
+Parakeet transcribes the whole recording on release on the Neural Engine. Whisper transcribes while you talk: each time you pause naturally, the audio so far is sent in the background, so only the last few seconds are left when you let go.
 
 On-device cleanup adds about a second. Older or base-model chips (M1, M2) will be slower; if Whisper can't keep up while you talk, the remainder is simply transcribed when you let go.
 
@@ -73,9 +76,13 @@ Utter notices the Accessibility switch within a couple of seconds; no restart is
 
 If speech recognition reports that it's unavailable, turn on **Siri & Dictation** in System Settings.
 
-## 3. Install Whisper
+## 3. Download the speech model
 
-The app download is small (about 3 MB) because the speech model isn't inside it. Click **Install** in step 4 of **Get started**, or **Install Whisper** in **Settings → AI & dictation**. Utter then:
+Click **Download** in step 4 of **Get started**. Utter downloads NVIDIA Parakeet (471 MB) from Hugging Face into `~/Library/Application Support/Utter/parakeet-tdt-0.6b-v3` and prepares it for the Neural Engine. The first load takes about 15 seconds; after that it loads in under a second. Progress shows in **Settings → AI & dictation**.
+
+### Optional: Whisper, for other languages
+
+Parakeet covers English and 24 other European languages, detected automatically. For other languages, choose **Whisper turbo** in **Settings → AI & dictation** and click **Install Whisper**. It needs an Apple Silicon Mac and Python. Utter then:
 
 1. Finds Python 3.10 or later (Homebrew's `/opt/homebrew/bin/python3` first).
 2. Creates a private Python environment in `~/Library/Application Support/Utter/whisper-env` and installs [mlx-whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper) and its dependencies (~1.3 GB).
@@ -103,7 +110,7 @@ Dictation needs no account. To use Command mode (or Claude as the cleanup engine
 
 ## 5. Try it
 
-Click into any text field, hold **Left ⌃ + Left ⌥**, say something, and let go. The notch shows a glowing orb while you talk, then "Polishing", then "Inserted N words".
+Use the **Try it** box at the bottom of **Get started**, or click into any text field. Hold **Left ⌃ + Left ⌥**, say something, and let go. The notch shows a glowing orb while you talk, then "Polishing", then "Inserted N words".
 
 ## Troubleshooting
 
@@ -113,7 +120,9 @@ Click into any text field, hold **Left ⌃ + Left ⌥**, say something, and let 
 | Wrong words, or text in the wrong language | Settings → AI & dictation → Speech language: pick yours instead of System default |
 | "Didn't catch that" | Utter heard no speech (only silence or background noise), so nothing was typed. Speak a little closer to the microphone |
 | Text is copied but not typed | Accessibility isn't on |
+| "Parakeet isn't ready" | Settings → AI & dictation → Download, or Retry if the download failed |
 | "Whisper isn't installed" | Settings → AI & dictation → Install Whisper |
+| Dictation stopped and the License page opened | The 14-day trial ended. Paste a license key in Settings → License |
 | Whisper fails to start | Settings → AI & dictation → Restart; the log is `~/Library/Application Support/Utter/whisper.log` |
 | Speech recognition unavailable | System Settings → Siri & Dictation → turn on |
 | A few apps ignore the text | Utter pastes with ⌘V; some terminals and remote desktops block synthesized keystrokes |
@@ -121,7 +130,7 @@ Click into any text field, hold **Left ⌃ + Left ⌥**, say something, and let 
 ## Uninstalling
 
 1. Quit Utter from the menu bar and delete it from Applications.
-2. Delete the Whisper environment, settings and history:
+2. Delete the speech models, settings, history and stats:
    ```bash
    rm -rf "$HOME/Library/Application Support/Utter"
    defaults delete dev.utter.Utter
@@ -131,3 +140,7 @@ Click into any text field, hold **Left ⌃ + Left ⌥**, say something, and let 
    rm -rf ~/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-turbo
    ```
 4. Remove Utter from System Settings → Privacy & Security → Accessibility.
+5. Optionally remove the license key from the Keychain:
+   ```bash
+   security delete-generic-password -s dev.utter.Utter -a license-key
+   ```

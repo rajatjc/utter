@@ -35,3 +35,8 @@ snapshots/
 .cursor/
 *.swp
 .DS_Store
+
+# Cloudflare Worker local state
+.wrangler/
+node_modules/
+.dev.vars

@@ -6,6 +6,11 @@
 # To avoid that, create a self-signed "Code Signing" certificate in Keychain
 # Access (Certificate Assistant → Create a Certificate) and build with
 #   UTTER_SIGN_IDENTITY="Your Cert Name" ./scripts/build.sh
+#
+# For customers, sign with your Developer ID certificate, which also turns on
+# the hardened runtime, then notarize:
+#   UTTER_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./scripts/make-dmg.sh
+#   ./scripts/notarize.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,12 +35,23 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp sidecar/whisper_server.py "$APP/Contents/Resources/whisper_server.py"
 cp scripts/setup-whisper.sh "$APP/Contents/Resources/setup-whisper.sh"
+# Apache-2.0 asks for the license text to travel with the binary.
+mkdir -p "$APP/Contents/Resources/Licenses"
+cp THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/Licenses/THIRD_PARTY_NOTICES.md"
+cp .build/checkouts/FluidAudio/LICENSE "$APP/Contents/Resources/Licenses/FluidAudio-LICENSE.txt"
 
 # Prefer an explicit identity, then the "Utter Dev" cert from make-signing-cert.sh, then ad-hoc.
 IDENTITY="${UTTER_SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ] && security find-identity -v -p codesigning | grep -q '"Utter Dev"'; then
     IDENTITY="Utter Dev"
 fi
-codesign --force --sign "${IDENTITY:--}" --identifier dev.utter.Utter "$APP"
+if [[ "$IDENTITY" == "Developer ID Application"* ]]; then
+    # Distribution: hardened runtime, entitlements and a secure timestamp, as
+    # notarization requires. Then run scripts/notarize.sh.
+    codesign --force --sign "$IDENTITY" --identifier dev.utter.Utter \
+        --options runtime --timestamp --entitlements Resources/Utter.entitlements "$APP"
+else
+    codesign --force --sign "${IDENTITY:--}" --identifier dev.utter.Utter "$APP"
+fi
 
 echo "Built $APP (signed with: ${IDENTITY:-ad-hoc signature; run scripts/make-signing-cert.sh once to keep permissions across rebuilds})"

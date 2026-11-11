@@ -22,12 +22,17 @@ final class KeyForm: ObservableObject {
 struct AIPage: View {
     @EnvironmentObject var state: AppState
     @ObservedObject private var sidecar = WhisperSidecar.shared
+    @ObservedObject private var parakeet = ParakeetEngine.shared
     @StateObject private var key = KeyForm()
 
     @AppStorage(Prefs.modelKey) private var model = Prefs.defaultModel
     @AppStorage(Prefs.speechEngineKey) private var speechEngine = (WhisperPaths.python() != nil ? Prefs.SpeechEngine.whisper : .apple).rawValue
     @AppStorage(Prefs.whisperPythonKey) private var whisperPython = ""
     @AppStorage(Prefs.showLiveTextKey) private var showLiveText = false
+    @AppStorage(Prefs.soundsKey) private var sounds = true
+    @AppStorage(Prefs.contextKey) private var cursorContext = true
+    @AppStorage(Prefs.learnKey) private var learn = true
+    @AppStorage(Prefs.freeMemoryKey) private var freeMemory = true
     @AppStorage(Prefs.dictationEngineKey) private var engine = Prefs.Engine.apple.rawValue
     @AppStorage(Prefs.cleanupKey) private var cleanup = true
     @AppStorage(Prefs.sendWindowTitleKey) private var sendWindowTitle = true
@@ -39,13 +44,49 @@ struct AIPage: View {
 
             SectionLabel(text: "Speech recognition")
             HStack(spacing: 10) {
-                ModelCard(name: "Apple Speech", tagline: "Built-in · instant live text",
+                ModelCard(name: "Parakeet v3", tagline: "Built in · fastest",
+                          selected: speechEngine == Prefs.SpeechEngine.parakeet.rawValue) {
+                    speechEngine = Prefs.SpeechEngine.parakeet.rawValue
+                    parakeet.prepare()
+                }
+                ModelCard(name: "Whisper turbo", tagline: whisperTagline,
+                          selected: speechEngine == Prefs.SpeechEngine.whisper.rawValue) {
+                    speechEngine = Prefs.SpeechEngine.whisper.rawValue
+                }
+                ModelCard(name: "Apple Speech", tagline: "Built-in · live text",
                           selected: speechEngine == Prefs.SpeechEngine.apple.rawValue) {
                     speechEngine = Prefs.SpeechEngine.apple.rawValue
                 }
-                ModelCard(name: "Whisper large-v3-turbo", tagline: whisperTagline,
-                          selected: speechEngine == Prefs.SpeechEngine.whisper.rawValue) {
-                    speechEngine = Prefs.SpeechEngine.whisper.rawValue
+            }
+            if speechEngine == Prefs.SpeechEngine.parakeet.rawValue {
+                Card {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(parakeetStatusText)
+                                .font(.system(size: 12))
+                                .foregroundStyle(parakeetFailed ? Theme.coral : .secondary)
+                            Spacer()
+                            switch parakeet.status {
+                            case .downloading, .loading:
+                                ProgressView().controlSize(.small)
+                            case .notInstalled, .failed:
+                                Button(parakeet.isInstalled ? "Retry" : "Download") { parakeet.prepare() }
+                                    .buttonStyle(BrandButtonStyle())
+                            case .unloaded:
+                                Button("Load") { parakeet.prepare() }.buttonStyle(SoftButtonStyle())
+                            case .ready:
+                                EmptyView()
+                            }
+                        }
+                        Text("NVIDIA Parakeet runs on the Neural Engine inside Utter, no Python needed. English and 24 other European languages, detected automatically. The text is ready a fraction of a second after you let go.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Card(padding: 4) {
+                    ToggleRow(title: "Free memory when idle",
+                              detail: "Unloads the model after \(Int(Prefs.idleMinutes)) minutes without dictating, and reloads it (about a second) when you start talking.",
+                              isOn: $freeMemory)
                 }
             }
             if speechEngine == Prefs.SpeechEngine.whisper.rawValue {
@@ -73,10 +114,15 @@ struct AIPage: View {
                                 .padding(.vertical, 5)
                                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
                         }
-                        Text("While you talk the notch shows the waveform and a timer; when you release, Whisper transcribes the recording (about half a second). Keeps ~1.8 GB of memory in use.")
+                        Text("Whisper transcribes while you talk, so the text is ready about half a second after you let go. Uses about 1.7 GB of memory while loaded.")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
+                }
+                Card(padding: 4) {
+                    ToggleRow(title: "Free memory when idle",
+                              detail: "Unloads Whisper after \(Int(Prefs.idleMinutes)) minutes without dictating, and reloads it (about a second) when you start talking.",
+                              isOn: $freeMemory)
                 }
                 Card(padding: 4) {
                     ToggleRow(title: "Show live text while talking",
@@ -135,6 +181,12 @@ struct AIPage: View {
                 VStack(spacing: 0) {
                     ToggleRow(title: "Polish with AI", detail: "Removes filler words, fixes punctuation and matches the app you're in.", isOn: $cleanup)
                     Divider().padding(.leading, 12)
+                    ToggleRow(title: "Fit into the text around the cursor", detail: "Continues your sentence: capitals, spacing and full stops match what's already there.", isOn: $cursorContext)
+                    Divider().padding(.leading, 12)
+                    ToggleRow(title: "Learn from your corrections", detail: "When you fix a word Utter got wrong, it offers to add it to your dictionary.", isOn: $learn)
+                    Divider().padding(.leading, 12)
+                    ToggleRow(title: "Start and stop sounds", detail: "A soft chime when listening starts and ends.", isOn: $sounds)
+                    Divider().padding(.leading, 12)
                     ToggleRow(title: "Use the window title for context", detail: "Helps recognize places like Gmail inside a browser.", isOn: $sendWindowTitle)
                     Divider().padding(.leading, 12)
                     HStack {
@@ -178,6 +230,22 @@ private extension AIPage {
             return "Whisper works out the language each time. Best if you switch languages; can misjudge very short clips."
         default:
             return "The language you dictate in."
+        }
+    }
+
+    var parakeetFailed: Bool {
+        if case .failed = parakeet.status { return true }
+        return false
+    }
+
+    var parakeetStatusText: String {
+        switch parakeet.status {
+        case .notInstalled: "Not downloaded yet (about 500 MB, once)."
+        case .downloading: "Downloading the model…"
+        case .loading: "Loading the model…"
+        case .ready: "Parakeet is ready."
+        case .unloaded: "Unloaded to save memory. It reloads when you start talking."
+        case .failed(let message): "Couldn't load Parakeet: \(message)"
         }
     }
 

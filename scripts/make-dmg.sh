@@ -1,9 +1,10 @@
 #!/bin/bash
 # Builds Utter and packages it as build/Utter.dmg (drag Utter into Applications).
 #
-# Note: this DMG is signed ad-hoc, so on other Macs Gatekeeper will warn that it's
-# from an unidentified developer (right-click → Open to get past it). Shipping to
-# customers needs an Apple Developer ID certificate plus notarization.
+# Without a Developer ID certificate the app is self-signed, so on other Macs
+# Gatekeeper warns that it's from an unidentified developer (right-click → Open
+# to get past it). For customers: set UTTER_SIGN_IDENTITY to your Developer ID
+# certificate, run this, then scripts/notarize.sh (see docs/DISTRIBUTION.md).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -17,4 +18,7 @@ ln -s /Applications "$STAGING/Applications"
 
 hdiutil create -volname "Utter" -srcfolder "$STAGING" -ov -format UDZO build/Utter.dmg >/dev/null
 rm -rf "$STAGING"
+if [[ "${UTTER_SIGN_IDENTITY:-}" == "Developer ID Application"* ]]; then
+    codesign --force --sign "$UTTER_SIGN_IDENTITY" --timestamp build/Utter.dmg
+fi
 echo "Created build/Utter.dmg"

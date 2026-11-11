@@ -1,5 +1,6 @@
 // `swift run UtterChecks` — checks UtterCore's logic without XCTest or
 // swift-testing (both need full Xcode). Exits non-zero on any failure.
+import CryptoKit
 import Foundation
 import UtterCore
 
@@ -220,6 +221,94 @@ check(RepetitionFilter.collapse("One. Two. Three.") == "One. Two. Three.", "norm
 check(RepetitionFilter.lastSentence(of: "First part. Second part, which matters.") == "Second part, which matters.",
       "context is the last sentence")
 check(RepetitionFilter.lastSentence(of: String(repeating: "a", count: 300)).count == 120, "context is capped")
+
+// MARK: Voice editing commands
+
+func edited(_ s: String) -> String { VoiceEditor.apply(s).text }
+check(edited("Let's meet at 3. Actually, scratch that. Let's meet at 4.") == "Let's meet at 4.",
+      "scratch that after a filler removes the previous sentence", edited("Let's meet at 3. Actually, scratch that. Let's meet at 4."))
+check(edited("let's meet at 3 scratch that let's meet at 4") == "Let's meet at 4",
+      "scratch that removes the phrase before it", edited("let's meet at 3 scratch that let's meet at 4"))
+check(edited("Hi team. The launch is Monday, delete that, the launch is Tuesday.") == "Hi team. The launch is Tuesday.",
+      "delete that keeps earlier sentences", edited("Hi team. The launch is Monday, delete that, the launch is Tuesday."))
+check(VoiceEditor.apply("Scratch that.") == VoiceEditor.Result(text: "", undoPrevious: true), "scratch that alone undoes the last dictation")
+check(edited("Thanks for the update. New paragraph. Next steps are below.") == "Thanks for the update.\n\nNext steps are below.",
+      "new paragraph", edited("Thanks for the update. New paragraph. Next steps are below.").debugDescription)
+check(edited("first item new line second item") == "first item\nSecond item", "new line capitalises the next line",
+      edited("first item new line second item").debugDescription)
+check(edited("We need eggs, milk, and coffee. Make that a list.") == "• We need eggs\n• Milk\n• Coffee",
+      "make that a list (commas)", edited("We need eggs, milk, and coffee. Make that a list.").debugDescription)
+check(edited("Agenda: launch timeline, hiring plan and budget, make it a bulleted list") == "Agenda:\n• Launch timeline\n• Hiring plan\n• Budget",
+      "make it a list (intro with a colon)", edited("Agenda: launch timeline, hiring plan and budget, make it a bulleted list").debugDescription)
+check(edited("Ship the build. Email the team. Bullet that.") == "• Ship the build\n• Email the team",
+      "bullet that (sentences)", edited("Ship the build. Email the team. Bullet that.").debugDescription)
+check(edited("I think we should delete the old table first.") == "I think we should delete the old table first.",
+      "'delete' in normal speech isn't a command")
+check(edited("Please send the new lineup by Friday.") == "Please send the new lineup by Friday.", "'new lineup' isn't 'new line'")
+
+// MARK: Fitting into the text around the cursor
+
+check(ContinuationFormatter.adapt("Hello there.", before: "", after: "") == "Hello there.", "empty field: unchanged")
+check(ContinuationFormatter.adapt("And then we left.", before: "We ate dinner,", after: "") == " and then we left.",
+      "mid-sentence: lower-case and a space")
+check(ContinuationFormatter.adapt("Sam joined us.", before: "Then", after: "", keepCapital: { $0 == "Sam" }) == " Sam joined us.",
+      "names stay capitalised")
+check(ContinuationFormatter.adapt("API keys rotate.", before: "the", after: "") == " API keys rotate.", "acronyms stay")
+check(ContinuationFormatter.adapt("I agree.", before: "and", after: "") == " I agree.", "'I' stays capitalised")
+check(ContinuationFormatter.adapt("the next one.", before: "Done. ", after: "") == "The next one.", "after a sentence: capital, no extra space")
+check(ContinuationFormatter.adapt("the next one.", before: "Done.", after: "") == " The next one.", "after a full stop with no space: adds one")
+check(ContinuationFormatter.adapt("Quick fix.", before: "This is a ", after: "change to the API") == "quick fix ",
+      "text continues after the cursor: no full stop, trailing space", ContinuationFormatter.adapt("Quick fix.", before: "This is a ", after: "change to the API").debugDescription)
+check(ContinuationFormatter.adapt("Item two.", before: "Item one\n", after: "") == "Item two.", "new line: capital, no space")
+check(ContinuationFormatter.adapt("hello", before: "(", after: ")") == "hello", "no space after an opening bracket")
+
+// MARK: Learning words from corrections
+
+let fieldBefore = "Notes: we deployed cubernetes on Monday and pinged Sarah."
+let fieldAfter = "Notes: we deployed Kubernetes on Monday and pinged Sara."
+let fixes = CorrectionFinder.corrections(before: fieldBefore, after: fieldAfter,
+                                         inserted: "we deployed cubernetes on Monday and pinged Sarah.")
+check(fixes == [.init(from: "cubernetes", to: "Kubernetes"), .init(from: "Sarah", to: "Sara")], "finds corrected words", "\(fixes)")
+check(CorrectionFinder.corrections(before: "Notes: meet at noon.", after: "Notes: call at noon.", inserted: "meet at noon.").isEmpty,
+      "a different word (a rewrite) isn't a correction")
+check(CorrectionFinder.corrections(before: "Title: draft one. We ship it.", after: "Title: final one. We ship it.",
+                                   inserted: "We ship it.").isEmpty, "edits outside the dictation are ignored")
+check(CorrectionFinder.corrections(before: "a b c", after: "a b c d e", inserted: "a b c").isEmpty, "additions aren't corrections")
+
+// MARK: Usage stats
+
+var cal = Calendar(identifier: .gregorian)
+cal.timeZone = TimeZone(identifier: "America/Toronto")!
+let day0 = cal.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 9))!
+var stats = UsageStats()
+stats.record(words: 120, seconds: 60, at: day0, calendar: cal)
+stats.record(words: 80, seconds: 30, at: day0.addingTimeInterval(3600), calendar: cal)
+stats.record(words: 40, seconds: 20, at: day0.addingTimeInterval(-86400), calendar: cal)
+stats.record(words: 999, seconds: 300, at: day0.addingTimeInterval(-10 * 86400), calendar: cal)
+let week = stats.total(7, endingAt: day0, calendar: cal)
+check(week.words == 240 && week.dictations == 3, "last 7 days total", "\(week)")
+check(stats.lastDays(7, endingAt: day0, calendar: cal).map(\.day.words) == [0, 0, 0, 0, 0, 40, 200], "per-day series, oldest first")
+check(abs(UsageStats.minutesSaved(week) - (240.0 / 40 - 110.0 / 60)) < 0.001, "time saved = typing time − speaking time")
+check(stats.streak(endingAt: day0, calendar: cal) == 2, "two-day streak")
+check(stats.allTime.words == 1239, "all-time words")
+check(HistoryRetention.days7.cutoff(now: day0)! == day0.addingTimeInterval(-7 * 86400), "7-day retention cutoff")
+
+// MARK: Licenses and the trial
+
+let signing = Curve25519.Signing.PrivateKey()
+let publicKey = signing.publicKey.rawRepresentation
+let licenseInfo = Licensing.Info(name: "Ada Lovelace", email: "ada@example.com", issued: Date(timeIntervalSince1970: 1_800_000_000), edition: "pro")
+let licenseKey = try! Licensing.sign(licenseInfo, privateKey: signing)
+check(Licensing.verify(licenseKey, publicKey: publicKey) == licenseInfo, "a signed key verifies")
+check(Licensing.verify("  " + licenseKey + "\n", publicKey: publicKey) != nil, "pasted with whitespace still verifies")
+var tampered = Array(licenseKey); tampered[12] = tampered[12] == "A" ? "B" : "A"
+check(Licensing.verify(String(tampered), publicKey: publicKey) == nil, "a tampered key is rejected")
+check(Licensing.verify(licenseKey, publicKey: Curve25519.Signing.PrivateKey().publicKey.rawRepresentation) == nil,
+      "a key from another private key is rejected")
+check(Licensing.verify("UTTER-garbage", publicKey: publicKey) == nil, "garbage is rejected")
+check(Trial.state(firstLaunch: day0, now: day0) == .active(daysLeft: 14), "trial starts at 14 days")
+check(Trial.state(firstLaunch: day0, now: day0.addingTimeInterval(13.5 * 86400)) == .active(daysLeft: 1), "last day")
+check(Trial.state(firstLaunch: day0, now: day0.addingTimeInterval(14 * 86400)) == .expired, "expires after 14 days")
 
 print(failures == 0 ? "✓ all \(checks) checks passed" : "\(failures) of \(checks) checks failed")
 exit(failures == 0 ? 0 : 1)

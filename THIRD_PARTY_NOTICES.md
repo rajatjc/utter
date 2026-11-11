@@ -1,6 +1,20 @@
 # Third-party notices
 
-Utter's own code is proprietary (see [LICENSE](LICENSE)). The app does not bundle third-party code. The components below are downloaded onto the user's Mac by the Whisper installer (`scripts/setup-whisper.sh`) from PyPI and Hugging Face, or are provided by Apple or Anthropic.
+Utter's own code is proprietary (see [LICENSE](LICENSE)).
+
+## Built into the app
+
+| Component | Source | License |
+|---|---|---|
+| FluidAudio 0.17.7 | github.com/FluidInference/FluidAudio | Apache-2.0 (its license text ships in the app at `Contents/Resources/Licenses/FluidAudio-LICENSE.txt`) |
+
+## Downloaded by the app
+
+| Component | Source | License |
+|---|---|---|
+| NVIDIA Parakeet TDT 0.6B v3, Core ML conversion by FluidInference | huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml | CC-BY-4.0. Attribution: "Parakeet TDT 0.6B v3" by NVIDIA |
+
+The components below are downloaded onto the user's Mac by the optional Whisper installer (`scripts/setup-whisper.sh`) from PyPI and Hugging Face, or are provided by Apple or Anthropic.
 
 ## Installed by the Whisper installer
 

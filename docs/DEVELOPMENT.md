@@ -46,6 +46,7 @@ swift build
 .build/debug/Utter --snapshot /tmp/utter-snaps     # render every screen and island state to PNGs
                                                     # (sizes-*.png: the island at three notch widths)
 CONFIG=debug ./scripts/build.sh
+.build/debug/Utter --probe-parakeet clip.wav        # download/load Parakeet, transcribe a 16 kHz mono WAV, time it
 open -n -W --stdout /tmp/probe.log build/Utter.app --args --probe-speech clip.aiff
                                                     # play a file into Apple's recognizer, log every callback
 .build/debug/Utter --probe-whisper-stream clip.wav  # play a 16 kHz mono WAV into streaming Whisper in real time;
@@ -54,6 +55,16 @@ open -n -W --stdout /tmp/probe.log build/Utter.app --args --probe-speech clip.ai
 
 - Snapshots draw native controls (text fields, toggles, pickers, the sidebar blur) as yellow placeholders; everything else is accurate.
 - `--probe-speech` must be launched through `open`. Run directly from a shell, the process is attributed to the terminal and macOS aborts the privacy request.
+
+## Releasing
+
+Signing with a Developer ID, notarizing and license keys: [DISTRIBUTION.md](DISTRIBUTION.md). Issue a key for yourself so the trial never blocks you while developing:
+
+```bash
+swift scripts/license.swift issue --name "Your Name" --email you@example.com
+```
+
+Paste it in Settings → License.
 
 ## Gotchas
 

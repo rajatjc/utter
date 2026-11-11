@@ -1,0 +1,8 @@
+# Deploy: npx wrangler deploy   (see docs/DISTRIBUTION.md)
+name = "utter-license"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+MAIL_FROM = "Utter <licenses@your-domain.example>"
+PRODUCT_NAME = "Utter"
