@@ -4,6 +4,15 @@ import Foundation
 
 /// Where Utter's Whisper pieces live.
 enum WhisperPaths {
+    /// Whisper runs on MLX, which needs Apple Silicon. Intel Macs use Apple's recognizer.
+    static var isSupported: Bool {
+        #if arch(arm64)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     /// ~/Library/Application Support/Utter
     static var supportDirectory: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -168,6 +177,10 @@ final class WhisperSidecar: ObservableObject {
     /// first install), showing its progress, then starts Whisper.
     func install() {
         if case .installing = status { return }
+        guard WhisperPaths.isSupported else {
+            status = .failed("Whisper needs an Apple Silicon Mac. This Mac uses Apple's built-in recognizer.")
+            return
+        }
         guard let script = Bundle.main.url(forResource: "setup-whisper", withExtension: "sh") else {
             status = .failed("The installer is missing from the app bundle.")
             return

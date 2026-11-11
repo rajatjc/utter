@@ -16,6 +16,13 @@ swift run UtterChecks       # check UtterCore's logic
 
 `run.sh` installs to `/Applications` so the app you test is the one macOS grants permissions to.
 
+Release builds are universal (`arm64` + `x86_64`) and have debug symbols stripped; debug builds are Apple Silicon only. To check the Intel slice on an Apple Silicon Mac, build a universal debug binary and run it under Rosetta:
+
+```bash
+swift build --arch arm64 --arch x86_64
+arch -x86_64 .build/out/Products/Debug/Utter --snapshot /tmp/utter-intel
+```
+
 ## Signing and permissions
 
 macOS ties the Accessibility permission to the app's code signature. An ad-hoc signature changes on every build, so the permission would be lost each time. Create a stable local identity once:
@@ -37,9 +44,12 @@ XCTest and swift-testing need full Xcode (they depend on compiler plugins the Co
 ```bash
 swift build
 .build/debug/Utter --snapshot /tmp/utter-snaps     # render every screen and island state to PNGs
+                                                    # (sizes-*.png: the island at three notch widths)
 CONFIG=debug ./scripts/build.sh
 open -n -W --stdout /tmp/probe.log build/Utter.app --args --probe-speech clip.aiff
                                                     # play a file into Apple's recognizer, log every callback
+.build/debug/Utter --probe-whisper-stream clip.wav  # play a 16 kHz mono WAV into streaming Whisper in real time;
+                                                    # compares the wait and text with transcribing it all at once
 ```
 
 - Snapshots draw native controls (text fields, toggles, pickers, the sidebar blur) as yellow placeholders; everything else is accurate.

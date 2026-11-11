@@ -10,12 +10,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${CONFIG:-release}"
-swift build -c "$CONFIG"
+# Release builds are universal so the app also opens on Intel Macs (where it uses
+# Apple's recognizer: Whisper via MLX and Apple's on-device model need Apple Silicon).
+ARCH_FLAGS=()
+[ "$CONFIG" = "release" ] && ARCH_FLAGS=(--arch arm64 --arch x86_64)
+swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+BIN_DIR="$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
 APP="build/Utter.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp ".build/$CONFIG/Utter" "$APP/Contents/MacOS/Utter"
+cp "$BIN_DIR/Utter" "$APP/Contents/MacOS/Utter"
 if [ "$CONFIG" = "release" ]; then
     # Drop debug symbols: they list every source file's absolute path, which would
     # reveal the build machine's user name and folders to anyone with the app.

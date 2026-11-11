@@ -109,6 +109,74 @@ enum Snapshots {
         state.phase = .failed("Didn't catch that.")
         bar("failed")
 
+        // The island as it looks in use: hanging from the menu bar over a desktop,
+        // for the README and the portfolio.
+        func onDesktop(_ name: String) {
+            render(ZStack(alignment: .top) {
+                LinearGradient(colors: [Color(red: 0.09, green: 0.08, blue: 0.18),
+                                        Color(red: 0.22, green: 0.12, blue: 0.30),
+                                        Color(red: 0.40, green: 0.18, blue: 0.26)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                RadialGradient(colors: [Color(red: 0.55, green: 0.35, blue: 0.95).opacity(0.35), .clear],
+                               center: UnitPoint(x: 0.8, y: 1.1), startRadius: 0, endRadius: 420)
+                Rectangle().fill(Color.black.opacity(0.28)).frame(height: notch.bandHeight)
+                NotchIslandView(geometry: notch).environmentObject(state)
+            }
+            .frame(width: 540, height: 140)
+            .environment(\.colorScheme, .dark), to: dir, "desktop-\(name)")
+        }
+        state.phase = .idle
+        state.barHovering = true
+        onDesktop("controls")
+        state.barHovering = false
+        state.sessionMode = .dictation
+        state.livePreview = false
+        state.phase = .listening(.dictation)
+        state.level = 0.7
+        onDesktop("listening")
+        state.phase = .processing(.dictation)
+        state.step = "Polishing…"
+        onDesktop("polishing")
+        state.phase = .done("Inserted 12 words")
+        state.phaseSince = Date().addingTimeInterval(-1)
+        onDesktop("done")
+        state.sessionMode = .command
+        state.livePreview = true
+        state.confirmPurpose = "Deploy the website"
+        state.phase = .confirm("cd ~/code/website && ./deploy.sh")
+        onDesktop("confirm")
+
+        // The island at the notch widths of different display scalings:
+        // "Larger Text" (≈150 pt), default (185 pt) and "More Space" (≈230 pt).
+        func island(width: CGFloat, band: CGFloat) -> some View {
+            NotchIslandView(geometry: NotchGeometry(screenFrame: .zero, centerX: 0, width: width,
+                                                    bandHeight: band, hasNotch: true))
+                .environmentObject(state)
+        }
+        func sizes(_ name: String) {
+            render(HStack(alignment: .top, spacing: 24) {
+                island(width: 150, band: 28)
+                island(width: 185, band: 32)
+                island(width: 230, band: 38)
+            }.padding(24).background(Color(white: 0.92)), to: dir, "sizes-\(name)")
+        }
+        state.phase = .idle
+        state.barHovering = true
+        sizes("controls")
+        state.barHovering = false
+        state.sessionMode = .dictation
+        state.livePreview = false
+        state.phase = .listening(.dictation)
+        state.level = 0.6
+        sizes("listening")
+        state.phase = .done("Inserted 12 words")
+        state.phaseSince = Date().addingTimeInterval(-1)
+        sizes("done")
+        state.sessionMode = .command
+        state.livePreview = true
+        state.phase = .done("Opened Slack and searched for flights to Lisbon.")
+        sizes("command-result")
+
         // The blob at a large size across its morph: quiet (top) and speaking (bottom).
         func strip(_ level: Double) -> some View {
             HStack(spacing: 0) {

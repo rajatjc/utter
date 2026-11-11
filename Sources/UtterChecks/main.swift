@@ -113,5 +113,58 @@ check(ShortcutParser.parse("f12")?.keyCode == 0x6F, "parse f12")
 check(ShortcutParser.parse("hyper+k") == nil, "unknown modifier rejected")
 check(ShortcutParser.parse("cmd+nope") == nil, "unknown key rejected")
 
+// MARK: Notch position on any display size and arrangement
+
+// This MacBook (14", default scaling): 1728 pt wide, 771.5 pt either side.
+var notch = NotchLayout.notch(frameMinX: 0, frameWidth: 1728, leftWidth: 771.5, rightWidth: 771.5)
+check(notch.centerX == 864 && notch.width == 185, "14-inch at the origin", "\(notch)")
+// Same MacBook arranged to the right of a 2560 pt external display.
+notch = NotchLayout.notch(frameMinX: 2560, frameWidth: 1728, leftWidth: 771.5, rightWidth: 771.5)
+check(notch.centerX == 2560 + 864, "MacBook right of an external display", "\(notch)")
+// Arranged to the left (negative x).
+notch = NotchLayout.notch(frameMinX: -1728, frameWidth: 1728, leftWidth: 771.5, rightWidth: 771.5)
+check(notch.centerX == -864, "MacBook left of an external display", "\(notch)")
+// 13-inch Air with "Larger Text" (1024 pt wide): a narrower notch in points.
+notch = NotchLayout.notch(frameMinX: 0, frameWidth: 1024, leftWidth: 437, rightWidth: 437)
+check(notch.centerX == 512 && notch.width == 150, "13-inch, larger text", "\(notch)")
+// 16-inch with "More Space" (2056 pt wide): a wider notch.
+notch = NotchLayout.notch(frameMinX: 0, frameWidth: 2056, leftWidth: 913, rightWidth: 913)
+check(notch.centerX == 1028 && notch.width == 230, "16-inch, more space", "\(notch)")
+// Missing or nonsense values fall back to a centred default.
+notch = NotchLayout.notch(frameMinX: 100, frameWidth: 1440, leftWidth: nil, rightWidth: 700)
+check(notch.centerX == 820 && notch.width == NotchLayout.defaultWidth, "fallback when areas are missing", "\(notch)")
+notch = NotchLayout.notch(frameMinX: 0, frameWidth: 1440, leftWidth: 10, rightWidth: 10)
+check(notch.width == NotchLayout.defaultWidth, "fallback when the measured notch is implausible", "\(notch)")
+
+// MARK: Pause-aligned chunking
+
+/// 16 kHz "speech" (a tone) with silent gaps at the given (start, end) seconds.
+func signal(seconds: Double, gaps: [(Double, Double)]) -> [Int16] {
+    (0..<Int(seconds * 16000)).map { i in
+        let t = Double(i) / 16000
+        if gaps.contains(where: { t >= $0.0 && t < $0.1 }) { return 0 }
+        return Int16(9000 * sin(2 * Double.pi * 220 * t))
+    }
+}
+func seconds(_ cut: Int?) -> Double? { cut.map { Double($0) / 16000 } }
+
+var audio = signal(seconds: 5, gaps: [(2, 2.5)])
+check(PauseChunker.cut(audio[...]) == nil, "no cut before 6 s")
+audio = signal(seconds: 10, gaps: [(4, 4.5), (7, 7.4)])
+if let s = seconds(PauseChunker.cut(audio[...])) {
+    check(abs(s - 7.2) < 0.05, "cuts in the middle of the latest pause", "\(s)")
+} else { check(false, "finds the pause at 7–7.4 s") }
+audio = signal(seconds: 10, gaps: [(7, 7.15)])
+check(PauseChunker.cut(audio[...]) == nil, "a 0.15 s gap isn't a pause")
+audio = signal(seconds: 12, gaps: [])
+check(PauseChunker.cut(audio[...]) == nil, "keeps listening without a pause before 20 s")
+audio = signal(seconds: 21, gaps: [])
+check(PauseChunker.cut(audio[...]) != nil, "forces a cut at 20 s with no pause")
+// A slice that doesn't start at index 0 (the unsent remainder of a recording).
+let longer = signal(seconds: 3, gaps: []) + signal(seconds: 10, gaps: [(7, 7.4)])
+if let s = seconds(PauseChunker.cut(longer[(3 * 16000)...])) {
+    check(abs(s - 7.2) < 0.05, "offset is relative to the slice", "\(s)")
+} else { check(false, "finds the pause in an offset slice") }
+
 print(failures == 0 ? "✓ all \(checks) checks passed" : "\(failures) of \(checks) checks failed")
 exit(failures == 0 ? 0 : 1)

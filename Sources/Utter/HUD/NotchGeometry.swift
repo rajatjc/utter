@@ -8,27 +8,37 @@ import SwiftUI
 struct NotchGeometry {
     var screenFrame: NSRect
     var centerX: CGFloat
-    /// Width of the physical notch (185 pt on current MacBooks).
+    /// Width of the notch in points. About 185 pt at the default display scaling;
+    /// narrower with "Larger Text", wider with "More Space".
     var width: CGFloat
-    /// Height of the menu bar band, which the notch spans.
+    /// Height of the band the notch spans (the menu bar height on that screen).
     var bandHeight: CGFloat
     var hasNotch: Bool
 
     static func current() -> NotchGeometry {
-        if let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }),
-           let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
-            return NotchGeometry(
-                screenFrame: screen.frame,
-                centerX: (left.maxX + right.minX) / 2,
-                width: right.minX - left.maxX,
-                bandHeight: screen.safeAreaInsets.top, // exactly the notch's height
-                hasNotch: true
-            )
+        // The built-in display of a notched MacBook, wherever it sits in the arrangement
+        // (it isn't the main screen when an external display is primary).
+        if let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) {
+            return notched(frame: screen.frame, topInset: screen.safeAreaInsets.top,
+                           leftWidth: screen.auxiliaryTopLeftArea?.width,
+                           rightWidth: screen.auxiliaryTopRightArea?.width)
         }
-        let frame = (NSScreen.main ?? NSScreen.screens.first)?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let visibleTop = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame.maxY ?? frame.maxY - 24
+        // No notch (iMac, Mac mini or Studio display, older MacBooks, lid closed).
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        let frame = screen?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let visibleTop = screen?.visibleFrame.maxY ?? frame.maxY - 24
         return NotchGeometry(screenFrame: frame, centerX: frame.midX, width: 185,
                              bandHeight: max(24, frame.maxY - visibleTop), hasNotch: false)
+    }
+
+    /// Uses only the widths of the menu bar areas either side of the notch, so it
+    /// doesn't matter whether the screen sits at the origin or elsewhere in a
+    /// multi-display arrangement.
+    static func notched(frame: NSRect, topInset: CGFloat, leftWidth: CGFloat?, rightWidth: CGFloat?) -> NotchGeometry {
+        let notch = NotchLayout.notch(frameMinX: frame.minX, frameWidth: frame.width,
+                                      leftWidth: leftWidth, rightWidth: rightWidth)
+        return NotchGeometry(screenFrame: frame, centerX: notch.centerX, width: notch.width,
+                             bandHeight: max(topInset, 20), hasNotch: true)
     }
 }
 
@@ -39,4 +49,3 @@ struct NotchGeometry {
 final class NotchPanel: NSPanel {
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
-

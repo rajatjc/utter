@@ -50,7 +50,8 @@ final class AppState: ObservableObject {
     private var confirmation: CheckedContinuation<Bool, Never>?
     @Published var permissions = Permissions.Status()
     @Published var hasAPIKey = Keychain.apiKey() != nil
-    @Published var whisperInstalled = WhisperPaths.python() != nil
+    /// True on Intel Macs too, where the Whisper step doesn't apply.
+    @Published var whisperInstalled = !WhisperPaths.isSupported || WhisperPaths.python() != nil
 
     /// Setup steps done out of 4: microphone, speech, accessibility, Whisper.
     /// (The Claude API key is optional: it only enables Command mode.)
@@ -133,7 +134,7 @@ final class AppState: ObservableObject {
 
     func refreshPermissions() {
         guard !frozenPermissions else { return }
-        let installed = WhisperPaths.python() != nil
+        let installed = !WhisperPaths.isSupported || WhisperPaths.python() != nil
         if installed != whisperInstalled { whisperInstalled = installed }
         let new = Permissions.current()
         guard new != permissions else { return }
@@ -181,6 +182,8 @@ final class AppState: ObservableObject {
             )
             phase = .listening(mode)
             hud.show()
+            // Streaming transcribers start on the recording while the user talks.
+            transcriber.begin(recording: speech.liveRecorder)
             if mode == .dictation, Prefs.dictationEngine == .apple { LocalModel.warmUp() }
         } catch {
             hotkeys.reset()
@@ -219,6 +222,8 @@ final class AppState: ObservableObject {
         if case .confirm = phase { return resolveConfirmation(false) }
         guard case .listening = phase else { return }
         speech.cancel()
+        transcriber?.cancel()
+        transcriber = nil
         hotkeys.reset()
         phase = .idle
         handsFree = false

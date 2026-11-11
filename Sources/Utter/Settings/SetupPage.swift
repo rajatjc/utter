@@ -31,7 +31,9 @@ struct SetupPage: View {
                     detail: "Lets Utter notice the hotkeys and type into other apps.",
                     done: state.permissions.accessibility, actionTitle: "Open Settings") { Permissions.open(.accessibility) }
             StepRow(number: 4, title: "Whisper speech recognition",
-                    detail: "Accurate, private transcription on this Mac. One-time download of about 3 GB.",
+                    detail: WhisperPaths.isSupported
+                        ? "Accurate, private transcription on this Mac. One-time download of about 3 GB."
+                        : "Needs an Apple Silicon Mac. This Mac uses Apple's built-in recognizer instead.",
                     done: state.whisperInstalled, actionTitle: "Install") {
                 WhisperSidecar.shared.install()
                 SettingsRouter.shared.page = .claude

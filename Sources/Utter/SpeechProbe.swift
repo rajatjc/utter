@@ -58,4 +58,61 @@ enum SpeechProbe {
         exit(0)
     }
 }
+
+/// Developer aid: `Utter --probe-whisper-stream <16 kHz mono WAV>` plays a
+/// recording into the streaming Whisper transcriber at real-time pace, as if
+/// someone were talking, then compares it with transcribing the whole file at
+/// once. Prints the wait after "release" for both, and both texts.
+@MainActor
+enum StreamProbe {
+    static func runIfRequested() -> Bool {
+        let args = CommandLine.arguments
+        guard let i = args.firstIndex(of: "--probe-whisper-stream"), i + 1 < args.count else { return false }
+        setvbuf(stdout, nil, _IONBF, 0)
+        let url = URL(fileURLWithPath: args[i + 1])
+        Task { @MainActor in await run(url) }
+        return true
+    }
+
+    private static func run(_ url: URL) async {
+        let sidecar = WhisperSidecar.shared
+        sidecar.ensureRunning()
+        while !sidecar.isReady {
+            if case .failed(let reason) = sidecar.status { print("Whisper failed: \(reason)"); exit(1) }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        guard let file = try? AVAudioFile(forReading: url, commonFormat: .pcmFormatInt16, interleaved: true),
+              file.processingFormat.sampleRate == 16000, file.processingFormat.channelCount == 1,
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
+              (try? file.read(into: buffer)) != nil, let data = buffer.int16ChannelData
+        else { print("need a 16 kHz mono WAV"); exit(1) }
+        let samples = Array(UnsafeBufferPointer(start: data[0], count: Int(buffer.frameLength)))
+        let seconds = Double(samples.count) / 16000
+        print(String(format: "audio: %.1f s", seconds))
+
+        var started = Date()
+        let whole = (try? await sidecar.transcribe(wav: url, language: Prefs.whisperLanguage, prompt: nil)) ?? "(failed)"
+        let wholeWait = Date().timeIntervalSince(started)
+
+        let recorder = PCM16Recorder()
+        let transcriber = WhisperTranscriber()
+        transcriber.begin(recording: recorder)
+        var index = 0
+        while index < samples.count { // 100 ms of audio every 100 ms
+            let next = min(index + 1600, samples.count)
+            recorder.append(samples[index..<next])
+            index = next
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        started = Date()
+        let streamed = (try? await transcriber.transcribe(SpeechEngine.Result(text: "", recorder: recorder)) { _ in }) ?? "(failed)"
+        let streamWait = Date().timeIntervalSince(started)
+
+        print(String(format: "all at once: %.2f s after release", wholeWait))
+        print(String(format: "streamed   : %.2f s after release", streamWait))
+        print("ALL: \(whole)")
+        print("STR: \(streamed)")
+        exit(0)
+    }
+}
 #endif

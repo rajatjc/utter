@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             if SpeechProbe.runIfRequested() { return } // exits when done
+            if StreamProbe.runIfRequested() { return } // exits when done
             #endif
             AppState.shared.start()
             // Menu bar apps are easy to miss: show the setup window until everything is ready.

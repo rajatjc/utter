@@ -58,7 +58,7 @@ struct AIPage: View {
                             Spacer()
                             if case .installing = sidecar.status {
                                 ProgressView().controlSize(.small)
-                            } else if !sidecar.isInstalled {
+                            } else if !sidecar.isInstalled, WhisperPaths.isSupported {
                                 Button("Install Whisper") { sidecar.install() }.buttonStyle(BrandButtonStyle())
                             } else {
                                 Button("Restart") { sidecar.restart() }.buttonStyle(SoftButtonStyle())

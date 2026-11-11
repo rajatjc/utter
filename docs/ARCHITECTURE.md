@@ -45,7 +45,7 @@ flowchart TB
 
 1. **Hotkey.** `HotkeyMonitor` feeds key events into `ChordStateMachine`, which decides press, release, cancel (any other key or modifier) or hands-free lock (double-press).
 2. **Capture.** `SpeechEngine` records the microphone as 16 kHz mono WAV. Apple's recognizer runs alongside only if it's the chosen transcriber or the live preview is turned on.
-3. **Transcribe.** `WhisperTranscriber` sends the WAV path to the sidecar, with personal-dictionary words as a spelling hint. If Whisper isn't available, Apple's recognizer is used.
+3. **Transcribe, while the user talks.** Every half second, `WhisperTranscriber` asks `PauseChunker` (UtterCore) whether the unsent audio has reached a natural pause, at least 0.3 s of near-silence after 6 s of speech (or the quietest moment after 20 s). If so, that chunk goes to the sidecar in the background, with the personal dictionary and the end of the previous chunk as context. On release only the remainder is sent, so the wait stays around 0.6 s regardless of length. If a chunk fails, the whole recording is transcribed once instead; if Whisper isn't available, Apple's recognizer is used.
 4. **Clean.** The chosen `TextCleaner` removes fillers and false starts, fixes punctuation and matches the destination app's style. The on-device cleaner's output is checked by `CleanupGuard`: small models sometimes answer a dictated question instead of cleaning it, and those outputs are discarded in favour of offline cleanup.
 5. **Insert.** `Inserter` pastes at the cursor and restores the clipboard. Without Accessibility, it leaves the text on the clipboard.
 
@@ -55,7 +55,7 @@ The island keeps one size from listening through "Polishing" to "Inserted N word
 
 | Area | Location | Role |
 |---|---|---|
-| Core logic | `Sources/UtterCore` | Pure Swift with no UI: hotkey rules, pause stitching, cleanup guard, snippets, shortcut parsing. Checked by `swift run UtterChecks`. |
+| Core logic | `Sources/UtterCore` | Pure Swift with no UI: hotkey rules, pause-aligned chunking, pause stitching, cleanup guard, snippets, shortcut parsing, notch layout. Checked by `swift run UtterChecks`. |
 | Session | `AppState.swift` | Phases (idle, listening, processing, done, failed), history, permissions |
 | Pipeline | `Sources/Utter/Pipeline` | `Transcriber`, `TextCleaner` and `Inserter` implementations, chosen per session |
 | Speech | `SpeechEngine.swift`, `RecognitionStream.swift` | Microphone, WAV capture, Apple recognizer with pause stitching |

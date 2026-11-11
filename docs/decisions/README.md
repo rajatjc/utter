@@ -9,3 +9,4 @@ Short records of choices that are easy to second-guess later. Add one when a dec
 | [0003](0003-notch-island.md) | The notch island is the primary interface |
 | [0004](0004-on-device-cleanup.md) | On-device cleanup by default; Claude optional |
 | [0005](0005-paste-to-insert.md) | Insert text by pasting |
+| [0006](0006-stream-whisper-in-pause-aligned-chunks.md) | Stream Whisper in pause-aligned chunks while the user talks |

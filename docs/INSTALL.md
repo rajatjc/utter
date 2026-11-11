@@ -2,15 +2,54 @@
 
 ## Requirements
 
-| | Required for | Notes |
+### Summary
+
+| | Minimum | Recommended |
 |---|---|---|
-| macOS 14 Sonoma or later | Everything | |
-| Apple Silicon (M1 or later) | Whisper speech recognition | Intel Macs fall back to Apple's built-in recognizer |
-| Python 3.10 or later | Installing Whisper | macOS's own Python (3.9) is too old; `brew install python` provides one |
-| About 3 GB of free disk space | Whisper | Python packages (~1.3 GB) and the model (~1.6 GB) |
-| About 2 GB of free memory | Whisper | The model stays loaded while Utter runs |
-| macOS 26 with Apple Intelligence turned on | On-device cleanup | Without it, dictation still works with basic cleanup |
-| Anthropic API key (optional) | Command mode, or Claude as the cleanup engine | console.anthropic.com |
+| Mac | Any Mac that runs macOS 14, Intel or Apple Silicon | Apple Silicon (M1 or later) |
+| macOS | 14 Sonoma | 26 or later, with Apple Intelligence turned on |
+| Memory (RAM) | 8 GB | 16 GB or more |
+| Free disk space | 10 MB (Intel, no Whisper) | 4 GB (app, Whisper and its model, plus headroom) |
+| Internet | Only for the one-time Whisper download | |
+
+### What each part needs
+
+| Part | Memory while running | Disk | Needs |
+|---|---|---|---|
+| Utter app | about 110 MB | about 3 MB | macOS 14+ (universal: runs on Intel and Apple Silicon) |
+| Whisper speech recognition | about 1.7 GB, loaded for as long as Utter runs | about 2.9 GB: Python packages 1.3 GB in `~/Library/Application Support/Utter`, model 1.6 GB in `~/.cache/huggingface` | Apple Silicon, Python 3.10+ (`brew install python`), one-time download |
+| On-device cleanup (fillers, punctuation, tone) | managed by macOS | Apple Intelligence's own models, downloaded by macOS | macOS 26+, Apple Silicon, Apple Intelligence turned on |
+| Apple's built-in recognizer (fallback) | small | none | Siri & Dictation turned on |
+| Claude (optional) | none extra | none | An Anthropic API key and an internet connection |
+
+Utter's own footprint with Whisper is about **1.8 GB of memory and 3 GB of disk**. On an 8 GB Mac that's a noticeable share of memory, so 16 GB is recommended if you keep many apps open. Utter hasn't been tested on an 8 GB Mac yet.
+
+### What works on which Mac
+
+| | Apple Silicon, macOS 26+ | Apple Silicon, macOS 14–15 | Intel Mac |
+|---|---|---|---|
+| Speech recognition | Whisper | Whisper | Apple's built-in recognizer |
+| Cleanup | On-device model | Basic (fillers, capitalization, snippets), or Claude | Basic, or Claude |
+| Command mode | With an API key | With an API key | With an API key |
+
+### Screens and displays
+
+Utter works on every screen size and display scaling, including built-in, external and multiple displays:
+
+- **MacBooks with a notch** (14" and 16" MacBook Pro from 2021, MacBook Air from 2022): Utter lives in the notch. Its size and position are read from macOS, so it fits at any scaling ("Larger Text" through "More Space") and wherever the MacBook sits in a multi-display arrangement.
+- **Macs without a notch** (iMac, Mac mini, Mac Studio, Mac Pro, older MacBooks, or a MacBook with its lid closed): Utter shows a floating pill at the top of the screen, which you can drag anywhere. It switches automatically when displays change.
+
+### Speed
+
+Utter transcribes while you talk: each time you pause naturally, the audio so far is sent to Whisper in the background. When you let go, only the last few seconds are left, so the wait is about the same however long you talk. Measured on an M3 Pro with Whisper large-v3-turbo:
+
+| Dictation | Wait after you let go |
+|---|---|
+| 7 seconds | about 0.7 s |
+| 30 seconds | about 0.6 s (1.1 s without streaming) |
+| 70 seconds | about 0.7 s (2.8 s without streaming) |
+
+On-device cleanup adds about a second. Older or base-model chips (M1, M2) will be slower; if Whisper can't keep up while you talk, the remainder is simply transcribed when you let go.
 
 ## 1. Install the app
 

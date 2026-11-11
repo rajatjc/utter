@@ -22,13 +22,16 @@ final class SpeechEngine: @unchecked Sendable { // state is only touched on the 
     struct Result {
         /// Apple's transcript ("" if the recognizer wasn't available).
         var text: String
-        /// 16 kHz mono WAV of the whole utterance, when recording was requested.
-        var wav: URL?
+        /// The 16 kHz recording, when recording was requested.
+        var recorder: PCM16Recorder?
     }
 
     private let engine = AVAudioEngine()
     private var stream: RecognitionStream?
     private var recorder: PCM16Recorder?
+
+    /// The recording in progress, so a transcriber can start on it before the user stops.
+    var liveRecorder: PCM16Recorder? { recorder }
 
     /// - useRecognizer: run Apple's recognizer (for the final text, or just a live preview).
     /// - requireRecognizer: fail if it can't run (when it's the only recognizer).
@@ -72,11 +75,11 @@ final class SpeechEngine: @unchecked Sendable { // state is only touched on the 
     /// Stops recording and waits briefly for the recognizer's final words.
     func stop() async -> Result {
         stopAudio()
-        let wav = try? recorder?.writeWAV()
-        recorder = nil
+        let recorder = self.recorder
+        self.recorder = nil
         let text = await stream?.finish() ?? ""
         stream = nil
-        return Result(text: text, wav: wav)
+        return Result(text: text, recorder: recorder)
     }
 
     func cancel() {
@@ -119,16 +122,25 @@ final class SpeechEngine: @unchecked Sendable { // state is only touched on the 
     }
 }
 
-/// Converts microphone buffers to 16 kHz mono 16-bit PCM in memory and writes
-/// them out as a WAV file (the format Whisper expects).
+/// Converts microphone buffers to 16 kHz mono 16-bit PCM in memory (the format
+/// Whisper expects). Safe to read from the main thread while the audio thread
+/// keeps appending, so chunks can be transcribed during recording.
 final class PCM16Recorder: @unchecked Sendable {
+    static let sampleRate = 16000
+
     private let target = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)!
     private let converter: AVAudioConverter?
     private let lock = NSLock()
-    private var pcm = Data()
+    private var pcm: [Int16] = []
 
     init(input: AVAudioFormat) {
         converter = AVAudioConverter(from: input, to: target)
+        pcm.reserveCapacity(16000 * 60)
+    }
+
+    /// For feeding already-converted samples (diagnostics).
+    init() {
+        converter = nil
     }
 
     func append(_ buffer: AVAudioPCMBuffer) {
@@ -148,15 +160,38 @@ final class PCM16Recorder: @unchecked Sendable {
             return buffer
         }
         guard error == nil, out.frameLength > 0, let samples = out.int16ChannelData else { return }
+        append(UnsafeBufferPointer(start: samples[0], count: Int(out.frameLength)))
+    }
+
+    func append<S: Sequence>(_ samples: S) where S.Element == Int16 {
         lock.lock()
-        pcm.append(UnsafeBufferPointer(start: samples[0], count: Int(out.frameLength)))
+        pcm.append(contentsOf: samples)
         lock.unlock()
     }
 
-    func writeWAV() throws -> URL {
+    /// Samples recorded so far.
+    var count: Int {
         lock.lock()
-        let body = pcm
-        lock.unlock()
+        defer { lock.unlock() }
+        return pcm.count
+    }
+
+    /// A copy of the samples in `range` (clamped to what's been recorded).
+    func samples(_ range: Range<Int>) -> [Int16] {
+        lock.lock()
+        defer { lock.unlock() }
+        let lower = max(0, min(range.lowerBound, pcm.count))
+        let upper = max(lower, min(range.upperBound, pcm.count))
+        return Array(pcm[lower..<upper])
+    }
+
+    func writeWAV() throws -> URL {
+        try Self.writeWAV(samples(0..<Int.max))
+    }
+
+    /// Writes 16 kHz mono 16-bit PCM to a temporary WAV file.
+    static func writeWAV(_ samples: [Int16]) throws -> URL {
+        let body = samples.withUnsafeBufferPointer { Data(buffer: $0) }
         var wav = Data(capacity: body.count + 44)
         func put<T: FixedWidthInteger>(_ value: T) {
             var little = value.littleEndian
