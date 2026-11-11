@@ -54,7 +54,18 @@ open -n -W --stdout /tmp/probe.log build/Utter.app --args --probe-speech clip.ai
                                                     # play a file into Apple's recognizer, log every callback
 .build/debug/Utter --probe-whisper-stream clip.wav  # play a 16 kHz mono WAV into streaming Whisper in real time;
                                                     # compares the wait and text with transcribing it all at once
+.build/debug/Utter --orb-bench both 20              # the listening orb and waveform (or `orb`, `wave`) in a window
+                                                    # with a simulated voice for 20 s; measure the process's CPU
 ```
+
+To measure the animation's real cost, build optimized with the debug tools kept, then sample the CPU while the bench runs:
+
+```bash
+swift build -c release -Xswiftc -DDEBUG --build-path /tmp/utter-bench
+/tmp/utter-bench/release/Utter --orb-bench both 22 & sleep 4; for i in $(seq 15); do ps -o %cpu= -p $!; sleep 1; done
+```
+
+At 30 fps the orb and waveform together use about 10% of one core while talking.
 
 - Snapshots draw native controls (text fields, toggles, pickers, the sidebar blur) as yellow placeholders; everything else is accurate.
 - `--probe-speech` must be launched through `open`. Run directly from a shell, the process is attributed to the terminal and macOS aborts the privacy request.
@@ -72,7 +83,7 @@ Paste it in Settings → License.
 ## Gotchas
 
 - **No `@State`.** On the macOS 27 SDK, SwiftUI's `@State` is a macro whose plugin ships only with full Xcode. View state lives in small `ObservableObject`s with `@StateObject`.
-- **Animations.** Never multiply absolute time by a speed that changes (the shape jumps). Integrate phases per frame and ease inputs, as `BlobMotion` does.
+- **Animations.** Never multiply absolute time by a speed that changes (the shape jumps). Integrate phases per frame and ease inputs, as `BlobMotion` does. Cap `TimelineView`s at 30 fps, keep blurs few (each is an offscreen pass every frame), and honour Reduce Motion (`accessibilityReduceMotion`).
 - **The notch.** The idle island is exactly the notch's size, so it's invisible and covers nothing. Hover is detected by polling the pointer position, because the pointer disappears under the notch.
 - **Whisper on silence.** Whisper invents text such as "Thank you." on silence; the server drops segments it marks as non-speech.
 

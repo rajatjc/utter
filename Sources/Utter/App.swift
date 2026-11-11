@@ -22,7 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             #if DEBUG
             // Developer tools (debug builds only): --snapshot <dir>, --probe-speech <file>,
-            // --probe-whisper-stream <file>, --probe-parakeet <file>.
+            // --probe-whisper-stream <file>, --probe-parakeet <file>, --orb-bench [orb|wave|both] [seconds].
+            if OrbBench.runIfRequested() { return } // quits when done
             if Snapshots.runIfRequested() {
                 NSApp.terminate(nil)
                 return

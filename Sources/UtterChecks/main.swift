@@ -310,5 +310,24 @@ check(Trial.state(firstLaunch: day0, now: day0) == .active(daysLeft: 14), "trial
 check(Trial.state(firstLaunch: day0, now: day0.addingTimeInterval(13.5 * 86400)) == .active(daysLeft: 1), "last day")
 check(Trial.state(firstLaunch: day0, now: day0.addingTimeInterval(14 * 86400)) == .expired, "expires after 14 days")
 
+// MARK: Speech onset (the orb's jolt)
+
+/// Feeds levels at 20 per second and returns the indices that counted as onsets.
+func onsets(_ levels: [Double]) -> [Int] {
+    var detector = SpeechOnset()
+    return levels.indices.filter { detector.update(level: levels[$0], dt: 0.05) }
+}
+let quietHalfSecond = [Double](repeating: 0.02, count: 10)
+let syllables = [0.6, 0.3, 0.8, 0.15, 0.7, 0.05, 0.9, 0.4] // speech with short dips between syllables
+check(onsets([0.7]) == [0], "the first words of a session are an onset")
+check(onsets(quietHalfSecond + syllables) == [10], "one onset per start of speech, not per syllable",
+      "\(onsets(quietHalfSecond + syllables))")
+check(onsets(syllables + [0.02, 0.02, 0.02] + syllables) == [0], "a pause shorter than 0.4 s isn't a new start",
+      "\(onsets(syllables + [0.02, 0.02, 0.02] + syllables))")
+check(onsets(syllables + quietHalfSecond + syllables) == [0, 18], "speech after a 0.5 s pause is a new start",
+      "\(onsets(syllables + quietHalfSecond + syllables))")
+check(onsets(quietHalfSecond + [0.2, 0.2, 0.7]) == [], "a slow rise through mid levels doesn't jolt",
+      "\(onsets(quietHalfSecond + [0.2, 0.2, 0.7]))")
+
 print(failures == 0 ? "✓ all \(checks) checks passed" : "\(failures) of \(checks) checks failed")
 exit(failures == 0 ? 0 : 1)

@@ -183,7 +183,8 @@ struct Waveform: View {
     var bars = 18
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        // 30 fps: indistinguishable for these bars, and about a third cheaper than 60.
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
             let t = (SnapshotClock.date ?? timeline.date).timeIntervalSinceReferenceDate
             Canvas { context, size in
                 let barWidth: CGFloat = 2.6

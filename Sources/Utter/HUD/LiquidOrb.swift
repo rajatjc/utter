@@ -86,16 +86,19 @@ enum SnapshotClock {
 /// Frame-to-frame motion for the three blobs. Phases are integrated over time
 /// (so changing speed never makes a shape jump) and the mic level is eased.
 ///
-/// When the voice jumps from quiet to loud, `energy` spikes: each blob gets a
-/// random spin kick, its edge spikes at random spots and the orb shakes. The
-/// energy fades in about half a second, back to smooth motion.
+/// When you start speaking after a pause (`SpeechOnset`: not every syllable),
+/// `energy` spikes: each blob gets a random spin kick, its edge spikes at
+/// random spots and the orb shakes. The energy fades in about half a second,
+/// back to smooth motion.
+///
+/// With Reduce Motion on (System Settings → Accessibility → Display) there is
+/// no jolt and the blobs turn and morph at half speed.
 final class BlobMotion: ObservableObject {
     static let speeds = [1.0, 1.35, 0.75]
     static let directions = [1.0, -1.0, 0.6]
 
     private var last: Date?
-    private var previousTarget = 0.0
-    private var cooldown = 0.0
+    private var onset = SpeechOnset()
     private var jitterClock = 0.0
     private var kick = [0.0, 0.0, 0.0]
     private var spikeSpeed = [0.0, 0.0, 0.0]
@@ -111,7 +114,7 @@ final class BlobMotion: ObservableObject {
     private(set) var buzz = 0.0
     private(set) var time = 0.0
 
-    func step(to now: Date, target rawTarget: Double, calm: Bool) {
+    func step(to now: Date, target rawTarget: Double, calm: Bool, reduceMotion: Bool = false) {
         let dt = min(1.0 / 30, max(0, last.map { now.timeIntervalSince($0) } ?? 0))
         last = now
         let target = calm ? 0 : rawTarget
@@ -119,14 +122,10 @@ final class BlobMotion: ObservableObject {
         let tau = target > level ? 0.07 : 0.4
         level += (target - level) * (1 - exp(-dt / tau))
 
-        let jump = target - previousTarget
-        previousTarget = target
-        cooldown -= dt
-        if jump > 0.18, cooldown <= 0 {
-            // Biggest from silence straight into speech.
-            let amount = min(1, jump * 1.6 + (level < 0.25 ? 0.35 : 0))
+        if onset.update(level: target, dt: dt), !reduceMotion {
+            // Louder starts jolt harder.
+            let amount = min(1, 0.35 + target)
             energy = min(1, energy + amount)
-            cooldown = 0.12
             for i in 0..<3 {
                 kick[i] += (Bool.random() ? -1 : 1) * Double.random(in: 2...6) * amount
                 spikes[i].lobes = Double(Int.random(in: 3...8))
@@ -141,14 +140,15 @@ final class BlobMotion: ObservableObject {
             jitterClock = 0.035
             jitter = Double.random(in: -1...1)
         }
+        let pace = reduceMotion ? 0.5 : 1.0
         for i in 0..<3 {
             kick[i] *= exp(-dt / 0.35)
-            flow[i] += dt * (0.8 + 1.5 * level + 6 * energy) * Self.speeds[i]
-            rotation[i] += dt * ((0.2 + 0.9 * level) * 0.6 * Self.directions[i] + kick[i])
+            flow[i] += dt * pace * (0.8 + 1.5 * level + 6 * energy) * Self.speeds[i]
+            rotation[i] += dt * (pace * (0.2 + 0.9 * level) * 0.6 * Self.directions[i] + kick[i])
             spikes[i].phase += dt * spikeSpeed[i]
             spikes[i].amount = 0.1 * energy * Double.random(in: 1...1.5)
         }
-        buzz += dt * (3 + 7 * level + 25 * energy)
+        buzz += dt * pace * (3 + 7 * level + 25 * energy)
         time += dt
     }
 }
@@ -176,6 +176,7 @@ struct AIOrb: View {
     var preview: (flow: Double, drift: Double, level: Double)? = nil
 
     @StateObject private var motion = BlobMotion()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// One colour per blob.
     private var hues: [Color] {
@@ -188,12 +189,16 @@ struct AIOrb: View {
     }
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        // 30 fps looks the same here and, with the single glow blur, keeps the
+        // orb and waveform at ~10% of one core while talking (60 fps: ~23%).
+        // Measure with `Utter --orb-bench` (docs/DEVELOPMENT.md).
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
             let now = SnapshotClock.date ?? timeline.date
             let age = now.timeIntervalSince(since)
             let settled = mood == .done || mood == .failed
             if SnapshotClock.motion == nil {
-                let _ = motion.step(to: now, target: Double(level), calm: mood != .listening)
+                let _ = motion.step(to: now, target: Double(level), calm: mood != .listening,
+                                    reduceMotion: reduceMotion)
             }
             // Smoothstep from 1 to 0 over half a second when settling.
             let s = settled ? max(0, 1 - age / 0.5) : 1
@@ -270,16 +275,22 @@ struct AIOrb: View {
         // Near-black bodies, so the orb melts into the notch.
         for path in paths { ctx.fill(path, with: .color(Color(white: 0.043))) }
 
-        // Soft glow just inside each edge.
-        for i in 0..<3 {
-            var glow = ctx
-            glow.blendMode = .plusLighter
-            glow.clip(to: paths[i])
-            glow.drawLayer { layer in
-                layer.addFilter(.blur(radius: blob * 0.035))
+        // Soft glow just inside each edge. One blur for all three (blurs are the
+        // expensive part of a frame): each glow is clipped to its own blob, the
+        // layer is blurred once, then clipped to the orb's outline.
+        var outline = Path()
+        for path in paths { outline.addPath(path) }
+        var glow = ctx
+        glow.blendMode = .plusLighter
+        glow.clip(to: outline)
+        glow.addFilter(.blur(radius: blob * 0.035))
+        glow.drawLayer { layer in
+            for i in 0..<3 {
+                var inside = layer
+                inside.clip(to: paths[i])
                 // Kept low: three glows add up, and too much washes the overlaps white.
-                layer.stroke(paths[i], with: .color(hues[i].opacity(min(1, 0.28 + 0.2 * lv + 0.2 * energy))),
-                             lineWidth: blob * (0.09 + 0.04 * lv))
+                inside.stroke(paths[i], with: .color(hues[i].opacity(min(1, 0.28 + 0.2 * lv + 0.2 * energy))),
+                              lineWidth: blob * (0.09 + 0.04 * lv))
             }
         }
 
