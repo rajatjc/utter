@@ -99,13 +99,20 @@ final class BlobMotion: ObservableObject {
 
     private var last: Date?
     private var onset = SpeechOnset()
+    private var previousTarget = 0.0
     private var jitterClock = 0.0
     private var kick = [0.0, 0.0, 0.0]
     private var spikeSpeed = [0.0, 0.0, 0.0]
+    private var reduceMotion = false
 
     private(set) var level = 0.0
     /// The jolt at speech onset, 0…1.
     private(set) var energy = 0.0
+    /// Follows the voice closely, pulsing with each syllable like the waveform's
+    /// bars: drives the spiky, shaky edges while you talk. 0 when quiet.
+    private(set) var agitation = 0.0
+    /// How much to shake the whole orb now: the onset jolt plus the voice.
+    var shake: Double { min(1, energy + (reduceMotion ? 0 : 0.45 * agitation)) }
     /// Random -1…1, changed ~30 times a second: shake and flicker during a jolt.
     private(set) var jitter = 0.0
     private(set) var flow = [0.0, 0.0, 0.0]
@@ -117,10 +124,28 @@ final class BlobMotion: ObservableObject {
     func step(to now: Date, target rawTarget: Double, calm: Bool, reduceMotion: Bool = false) {
         let dt = min(1.0 / 30, max(0, last.map { now.timeIntervalSince($0) } ?? 0))
         last = now
+        self.reduceMotion = reduceMotion
         let target = calm ? 0 : rawTarget
         // Rise fast, fall slowly, both eased.
         let tau = target > level ? 0.07 : 0.4
         level += (target - level) * (1 - exp(-dt / tau))
+        // Much quicker both ways, so it rises and drops with every syllable.
+        let agitationTau = target > agitation ? 0.04 : 0.15
+        agitation += (target - agitation) * (1 - exp(-dt / agitationTau))
+
+        // Each syllable (a quick rise in the level) twitches the blobs and moves
+        // their spikes somewhere new, so the edges stay erratic while you talk.
+        let rise = target - previousTarget
+        previousTarget = target
+        if rise > 0.12, !reduceMotion {
+            for i in 0..<3 {
+                kick[i] += (Bool.random() ? -1 : 1) * Double.random(in: 0.6...1.8) * rise * 2
+                spikes[i].lobes = Double(Int.random(in: 3...8))
+                spikes[i].lobes2 = Double(Int.random(in: 7...12))
+                spikes[i].phase = Double.random(in: 0..<(2 * .pi))
+                spikeSpeed[i] = Double.random(in: -10...10)
+            }
+        }
 
         if onset.update(level: target, dt: dt), !reduceMotion {
             // Louder starts jolt harder.
@@ -146,9 +171,10 @@ final class BlobMotion: ObservableObject {
             flow[i] += dt * pace * (0.8 + 1.5 * level + 6 * energy) * Self.speeds[i]
             rotation[i] += dt * (pace * (0.2 + 0.9 * level) * 0.6 * Self.directions[i] + kick[i])
             spikes[i].phase += dt * spikeSpeed[i]
-            spikes[i].amount = 0.1 * energy * Double.random(in: 1...1.5)
+            let voiceSpikes = (reduceMotion ? 0.02 : 0.08) * agitation
+            spikes[i].amount = (0.1 * energy + voiceSpikes) * Double.random(in: 1...1.5)
         }
-        buzz += dt * pace * (3 + 7 * level + 25 * energy)
+        buzz += dt * pace * (3 + 7 * level + 20 * agitation + 25 * energy)
         time += dt
     }
 }
@@ -156,8 +182,9 @@ final class BlobMotion: ObservableObject {
 /// Three dark blobs sharing one centre, each a different shape with its edge
 /// lit in its own colour, so where they overlap stays easy to see.
 ///
-/// - Listening: they turn and morph out of step; louder speech bulges and
-///   brightens them, and the start of speech jolts them (see `BlobMotion`).
+/// - Listening: quiet, they turn and morph smoothly. While you talk, the edges
+///   spike and the orb shakes in step with your voice, like the waveform's
+///   bars, and the start of speech jolts it hardest (see `BlobMotion`).
 /// - Thinking: calm, slow morph.
 /// - Done: the three settle into one circle, a completion ring draws around
 ///   it, then a check. Failed: settles amber with an exclamation mark.
@@ -238,13 +265,16 @@ struct AIOrb: View {
         let motion = SnapshotClock.motion ?? self.motion
         let lv = preview?.level ?? motion.level
         let energy = preview == nil ? motion.energy * settle : 0
+        let agitation = preview == nil ? motion.agitation * settle : 0
+        // Shake, size twitch and flicker: big at the start of speech, smaller with each syllable.
+        let shake = preview == nil ? motion.shake * settle : 0
         let jitter = motion.jitter
         let k = size / 56
-        let r = Double(size) * 0.43 * (1 + 0.05 * energy * jitter)
-        let center = CGPoint(x: canvas.width / 2 + CGFloat(energy * jitter * 0.025) * size,
-                             y: canvas.height / 2 + CGFloat(energy * sin(motion.time * 53) * 0.02) * size)
+        let r = Double(size) * 0.43 * (1 + 0.05 * shake * jitter)
+        let center = CGPoint(x: canvas.width / 2 + CGFloat(shake * jitter * 0.025) * size,
+                             y: canvas.height / 2 + CGFloat(shake * sin(motion.time * 53) * 0.02) * size)
         let wobble = (mood == .thinking ? 0.11 : 0.15 + 0.08 * lv + 0.05 * energy) * settle
-        let vibration = (0.025 * lv + 0.03 * energy) * settle
+        let vibration = (0.025 * lv + 0.03 * agitation + 0.03 * energy) * settle
         let hues = self.hues
 
         let paths: [Path] = (0..<3).map { i in
@@ -258,7 +288,7 @@ struct AIOrb: View {
                              bulges: BlobShape.trio[i], rotation: rotation, spike: spike)
                 .path(in: CGRect(x: center.x - ri, y: center.y - ri, width: 2 * ri, height: 2 * ri))
         }
-        let flicker = 1 + 0.5 * energy * jitter
+        let flicker = 1 + 0.5 * shake * jitter
         let blob = CGFloat(2 * r)
 
         // Faint halo outside each edge.
