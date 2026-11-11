@@ -40,11 +40,12 @@ struct DockRow: View {
 struct SessionRow: View {
     @EnvironmentObject var state: AppState
 
-    /// Voice-only dictation keeps one fixed footprint from the first word to
-    /// "done": the orb on the left and a 150 pt slot that shows the waveform,
-    /// then the status, then the result, so the island never changes size.
+    /// Voice-only sessions (dictation and commands alike) keep one fixed
+    /// footprint from the first word to the result or error: the orb on the
+    /// left and a 150 pt slot that shows the waveform, then the status, then
+    /// the result, so the island never changes size.
     private var compact: Bool {
-        guard state.sessionMode == .dictation, !state.livePreview else { return false }
+        guard !state.livePreview else { return false }
         switch state.phase {
         case .listening, .processing, .done, .failed, .notice: return true
         case .idle, .confirm, .suggest: return false
@@ -62,6 +63,9 @@ struct SessionRow: View {
                     Text(stepTitle)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .truncationMode(.tail) // "Opening https://…" mustn't widen the slot
                     LoadingDots(colors: state.hudColors)
                 }
             case .done(let message), .failed(let message), .notice(let message):
@@ -69,8 +73,8 @@ struct SessionRow: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.92))
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(3) // errors such as a missing API key run longer than results
+                    .minimumScaleFactor(0.7)
             default:
                 EmptyView()
             }
@@ -84,7 +88,7 @@ struct SessionRow: View {
 
     /// "Polishing…" → "Polishing" (the dots are animated instead).
     private var stepTitle: String {
-        let raw = state.step.isEmpty ? "Polishing" : state.step
+        let raw = state.step.isEmpty ? (state.sessionMode == .command ? "Working" : "Polishing") : state.step
         return raw.hasSuffix("…") ? String(raw.dropLast()) : raw
     }
 
@@ -93,12 +97,6 @@ struct SessionRow: View {
             badge
             if compact {
                 compactSlot
-            } else if state.hudVoiceOnly {
-                // Voice-only: no words, just the orb and the voice.
-                Waveform(level: state.level, colors: state.hudColors, bars: 28)
-                    .frame(width: 150, height: 28)
-                    .padding(.trailing, 4)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
             } else {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(state.hudTitle)

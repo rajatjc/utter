@@ -422,7 +422,7 @@ final class AppState: ObservableObject {
 
     private func runCommand(_ transcript: String) async {
         guard hasAPIKey else {
-            return fail("Voice commands need a Claude API key. Add one in Settings → AI.")
+            return fail("Commands need a Claude API key: Settings → AI.")
         }
         step = "Thinking…"
         reactivateTarget()

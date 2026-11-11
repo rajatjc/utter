@@ -96,6 +96,19 @@ enum Snapshots {
         state.phase = .done("Inserted 12 words")
         state.phaseSince = Date().addingTimeInterval(-1)
         bar("dictation-done")
+        // Voice-only command: the same footprint as dictation, error included.
+        state.sessionMode = .command
+        state.phase = .listening(.command)
+        state.level = 0.6
+        bar("command-voice-only-listening")
+        state.phase = .processing(.command)
+        state.step = "Searching for flights to Lisbon in March…"
+        bar("command-voice-only-working")
+        state.phase = .done("Opened Slack and searched for flights to Lisbon.")
+        state.phaseSince = Date().addingTimeInterval(-1)
+        bar("command-voice-only-done")
+        state.phase = .failed("Commands need a Claude API key: Settings → AI.")
+        bar("command-voice-only-failed")
         state.sessionMode = .command
         state.livePreview = true
         state.phase = .processing(.command)
