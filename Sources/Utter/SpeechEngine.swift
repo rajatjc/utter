@@ -5,11 +5,13 @@ import Speech
 enum SpeechError: LocalizedError {
     case notAuthorized
     case unavailable
+    case microphoneUnavailable
 
     var errorDescription: String? {
         switch self {
         case .notAuthorized: "Speech recognition isn't allowed. Enable it in System Settings → Privacy & Security."
         case .unavailable: "Speech recognition is unavailable. Check that Siri & Dictation is turned on in System Settings."
+        case .microphoneUnavailable: "The microphone isn't ready. Try again in a moment."
         }
     }
 }
@@ -26,7 +28,11 @@ final class SpeechEngine: @unchecked Sendable { // state is only touched on the 
         var recorder: PCM16Recorder?
     }
 
-    private let engine = AVAudioEngine()
+    /// Replaced at the start of every session. A long-lived engine keeps the
+    /// input format it saw first, so after sleep or a microphone change (the
+    /// hardware moving from 44.1 to 48 kHz, say) installing the tap raises an
+    /// Objective-C exception that AppKit swallows, and dictation silently never starts.
+    private var engine = AVAudioEngine()
     private var stream: RecognitionStream?
     private var recorder: PCM16Recorder?
 
@@ -61,8 +67,18 @@ final class SpeechEngine: @unchecked Sendable { // state is only touched on the 
         }
         self.stream = stream
 
+        engine = AVAudioEngine() // picks up the current microphone and its format
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
+        let hardware = input.inputFormat(forBus: 0)
+        // installTap raises (it can't be caught in Swift) on an invalid or
+        // mismatched format, so check first and fail with a readable error.
+        guard format.sampleRate > 0, format.channelCount > 0, format.sampleRate == hardware.sampleRate else {
+            Diagnostics.log("audio", "microphone not ready: client \(Int(format.sampleRate)) Hz \(format.channelCount) ch, hardware \(Int(hardware.sampleRate)) Hz \(hardware.channelCount) ch")
+            stream?.cancel()
+            self.stream = nil
+            throw SpeechError.microphoneUnavailable
+        }
         let recorder = record ? PCM16Recorder(input: format) : nil
         self.recorder = recorder
         input.removeTap(onBus: 0)
