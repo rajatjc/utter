@@ -141,6 +141,19 @@ final class AppState: ObservableObject {
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.applySpeechEngine() }
         }
+        // Whisper is usually freed to save memory while the Mac sleeps, and a
+        // cold reload takes ~30 s. Start it the moment the screen is unlocked so
+        // it's ready by the first dictation.
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                let sidecar = WhisperSidecar.shared
+                guard Prefs.speechEngine == .whisper, sidecar.isInstalled, sidecar.status == .off else { return }
+                Diagnostics.log("power", "preloading Whisper after unlock")
+                sidecar.ensureRunning()
+            }
+        }
 
         // Watch for permission changes made in System Settings.
         Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in

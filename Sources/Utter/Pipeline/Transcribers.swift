@@ -136,13 +136,18 @@ final class WhisperTranscriber: Transcriber {
         guard let recorder = capture.recorder ?? recorder else { return fallback }
 
         let sidecar = WhisperSidecar.shared
-        // Whisper may still be loading right after launch: give it a few seconds.
+        // Whisper may still be loading (after launch, or after being freed when
+        // idle). A cold load after a long sleep takes ~30 s, so keep waiting for
+        // as long as it is actually starting, up to 90 s, rather than giving up
+        // and losing what was said. Stop early only if it failed or stopped.
         if !sidecar.isReady {
-            progress("Starting Whisper…")
-            for _ in 0..<40 where !sidecar.isReady {
-                if case .failed = sidecar.status { break }
+            progress("Loading Whisper…")
+            Diagnostics.log("session", "waiting for Whisper to load (\(sidecar.status))")
+            let deadline = Date().addingTimeInterval(90)
+            while !sidecar.isReady, sidecar.status == .starting, Date() < deadline {
                 try? await Task.sleep(nanoseconds: 250_000_000)
             }
+            Diagnostics.log("session", sidecar.isReady ? "Whisper ready" : "Whisper not ready: \(sidecar.status)")
         }
         guard sidecar.isReady else {
             if !fallback.isEmpty { return fallback }
