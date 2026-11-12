@@ -122,7 +122,6 @@ Use the **Try it** box at the bottom of **Get started**, or click into any text 
 | Text is copied but not typed | Accessibility isn't on |
 | "Parakeet isn't ready" | Settings → AI & dictation → Download, or Retry if the download failed |
 | "Whisper isn't installed" | Settings → AI & dictation → Install Whisper |
-| Dictation stopped and the License page opened | The 14-day trial ended. Paste a license key in Settings → License |
 | Whisper fails to start | Settings → AI & dictation → Restart; the log is `~/Library/Application Support/Utter/whisper.log` |
 | Speech recognition unavailable | System Settings → Siri & Dictation → turn on |
 | The shortcut stopped working (for example after sleep) | Quit Utter from the menu bar (right-click → Quit Utter) and open it again. To find the cause, look at `~/Library/Application Support/Utter/diagnostics.log` around the time it stopped |
@@ -141,7 +140,7 @@ Use the **Try it** box at the bottom of **Get started**, or click into any text 
    rm -rf ~/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-turbo
    ```
 4. Remove Utter from System Settings → Privacy & Security → Accessibility.
-5. Optionally remove the license key from the Keychain:
+5. If you used an older build with a license key, you can remove it from the Keychain:
    ```bash
    security delete-generic-password -s dev.utter.Utter -a license-key
    ```

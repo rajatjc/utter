@@ -72,13 +72,7 @@ At 30 fps the orb and waveform together use about 10% of one core while talking.
 
 ## Releasing
 
-Signing with a Developer ID, notarizing and license keys: [DISTRIBUTION.md](DISTRIBUTION.md). Issue a key for yourself so the trial never blocks you while developing:
-
-```bash
-swift scripts/license.swift issue --name "Your Name" --email you@example.com
-```
-
-Paste it in Settings → License.
+Signing with a Developer ID, notarizing and publishing a release: [DISTRIBUTION.md](DISTRIBUTION.md).
 
 ## Gotchas
 

@@ -11,4 +11,5 @@ Short records of choices that are easy to second-guess later. Add one when a dec
 | [0005](0005-paste-to-insert.md) | Insert text by pasting |
 | [0006](0006-stream-whisper-in-pause-aligned-chunks.md) | Stream Whisper in pause-aligned chunks while the user talks |
 | [0007](0007-built-in-parakeet.md) | A built-in speech model (Parakeet) as the default |
-| [0008](0008-offline-license-keys.md) | Offline license keys and a 14-day trial |
+| [0008](0008-offline-license-keys.md) | Offline license keys and a 14-day trial (superseded by 0009) |
+| [0009](0009-open-source.md) | Open source under MIT; no keys or trial |

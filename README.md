@@ -85,10 +85,10 @@ Details: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 | [INSTALL.md](docs/INSTALL.md) | Installing on a new Mac, Whisper setup, troubleshooting, uninstalling |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, privacy and security |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Building from source, signing, checks, developer tools |
-| [DISTRIBUTION.md](docs/DISTRIBUTION.md) | Notarizing, the store, and license keys |
+| [DISTRIBUTION.md](docs/DISTRIBUTION.md) | Signing, notarizing and publishing a release |
 | [ROADMAP.md](docs/ROADMAP.md) | Known gaps and what's next |
 | [decisions/](docs/decisions/) | Why things are the way they are |
 
 ## License
 
-Utter is paid software with a 14-day free trial. Copyright © 2026 The Utter authors. All rights reserved. The source is published for reference only; see [LICENSE](LICENSE). Third-party components are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Utter is free and open source under the [MIT License](LICENSE). Issues and pull requests are welcome. Third-party components keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

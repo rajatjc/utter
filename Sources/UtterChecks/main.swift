@@ -1,6 +1,5 @@
 // `swift run UtterChecks` — checks UtterCore's logic without XCTest or
 // swift-testing (both need full Xcode). Exits non-zero on any failure.
-import CryptoKit
 import Foundation
 import UtterCore
 
@@ -292,23 +291,6 @@ check(abs(UsageStats.minutesSaved(week) - (240.0 / 40 - 110.0 / 60)) < 0.001, "t
 check(stats.streak(endingAt: day0, calendar: cal) == 2, "two-day streak")
 check(stats.allTime.words == 1239, "all-time words")
 check(HistoryRetention.days7.cutoff(now: day0)! == day0.addingTimeInterval(-7 * 86400), "7-day retention cutoff")
-
-// MARK: Licenses and the trial
-
-let signing = Curve25519.Signing.PrivateKey()
-let publicKey = signing.publicKey.rawRepresentation
-let licenseInfo = Licensing.Info(name: "Ada Lovelace", email: "ada@example.com", issued: Date(timeIntervalSince1970: 1_800_000_000), edition: "pro")
-let licenseKey = try! Licensing.sign(licenseInfo, privateKey: signing)
-check(Licensing.verify(licenseKey, publicKey: publicKey) == licenseInfo, "a signed key verifies")
-check(Licensing.verify("  " + licenseKey + "\n", publicKey: publicKey) != nil, "pasted with whitespace still verifies")
-var tampered = Array(licenseKey); tampered[12] = tampered[12] == "A" ? "B" : "A"
-check(Licensing.verify(String(tampered), publicKey: publicKey) == nil, "a tampered key is rejected")
-check(Licensing.verify(licenseKey, publicKey: Curve25519.Signing.PrivateKey().publicKey.rawRepresentation) == nil,
-      "a key from another private key is rejected")
-check(Licensing.verify("UTTER-garbage", publicKey: publicKey) == nil, "garbage is rejected")
-check(Trial.state(firstLaunch: day0, now: day0) == .active(daysLeft: 14), "trial starts at 14 days")
-check(Trial.state(firstLaunch: day0, now: day0.addingTimeInterval(13.5 * 86400)) == .active(daysLeft: 1), "last day")
-check(Trial.state(firstLaunch: day0, now: day0.addingTimeInterval(14 * 86400)) == .expired, "expires after 14 days")
 
 // MARK: Speech onset (the orb's jolt)
 

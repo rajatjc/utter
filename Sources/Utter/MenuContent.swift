@@ -4,7 +4,6 @@ import SwiftUI
 
 struct MenuContent: View {
     @EnvironmentObject var state: AppState
-    @ObservedObject private var license = LicenseManager.shared
     @ObservedObject private var stats = StatsStore.shared
 
     var body: some View {
@@ -14,7 +13,6 @@ struct MenuContent: View {
             if state.setupStepsDone < 4 {
                 setupCard
             }
-            licenseBanner
 
             HStack(spacing: 10) {
                 ModeCard(mode: .dictation, title: "Dictate", subtitle: "Hold, talk, release",
@@ -112,37 +110,6 @@ struct MenuContent: View {
             Spacer()
             StatusPill(phase: state.phase, needsSetup: !state.permissions.accessibility, muted: state.isMuted)
         }
-    }
-
-    @ViewBuilder private var licenseBanner: some View {
-        switch license.state {
-        case .licensed:
-            EmptyView()
-        case .trial(let days) where days > 3:
-            EmptyView()
-        case .trial(let days):
-            banner(icon: "hourglass", color: Theme.violet,
-                   text: "\(days) \(days == 1 ? "day" : "days") left in your free trial.")
-        case .expired:
-            banner(icon: "exclamationmark.circle.fill", color: Theme.coral,
-                   text: "Your free trial has ended. Add a license to keep dictating.")
-        }
-    }
-
-    private func banner(icon: String, color: Color, text: String) -> some View {
-        Button { SettingsWindow.show(page: .license) } label: {
-            HStack(spacing: 8) {
-                Image(systemName: icon).foregroundStyle(color)
-                Text(text).font(.system(size: 12)).foregroundStyle(.primary)
-                Spacer()
-                Text("License").font(.system(size: 11, weight: .semibold)).foregroundStyle(color)
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(color.opacity(0.12)))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .hoverGlow(color, lift: 1.0)
     }
 
     private var setupCard: some View {

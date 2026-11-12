@@ -1,12 +1,12 @@
 # Roadmap
 
-## Before selling
+## Next
 
-Done in code; each needs an account (see [DISTRIBUTION.md](DISTRIBUTION.md)): Developer ID signing and notarization scripts, a built-in speech model (Parakeet, no Python), offline license keys with a 14-day trial, and a webhook Worker that emails keys.
+Done in code (see [DISTRIBUTION.md](DISTRIBUTION.md)): Developer ID signing and notarization scripts, and a built-in speech model (Parakeet, no Python).
 
-1. **Accounts.** Apple Developer Program, a Lemon Squeezy store, Resend and Cloudflare. Then point `LicenseManager.purchaseURL` at the checkout.
+1. **A downloadable release.** A notarized DMG on GitHub Releases needs an Apple Developer Program membership; until then, a self-signed DMG works with one extra step for users.
 2. **Real-world testing** of the new features: voice edits, cursor fitting and correction learning in Mail, Slack, Notes, browsers and code editors; Parakeet on M1 and 8 GB Macs, and on Intel.
-3. **Auto-updates.** Sparkle, or the Mac App Store (which also handles payment, but requires sandboxing; the hotkey and typing features would need rework).
+3. **Auto-updates.** Sparkle, pointed at GitHub Releases.
 4. **Crash reporting and opt-in analytics.**
 5. **A trademark check on the name.** "Utter" is a working name.
 
@@ -17,7 +17,6 @@ Done in code; each needs an account (see [DISTRIBUTION.md](DISTRIBUTION.md)): De
 - **Commands without an API key:** run the command loop on Apple's on-device model (its tool-calling API needs full Xcode to compile).
 - **Unified key:** one hotkey, with the model deciding whether the user is dictating or commanding.
 - **Deeper Mac control:** Accessibility-based actions (click buttons by name, read the screen) and connectors for calendar, email and task tools.
-- **Hosted option:** a backend so customers can use Claude features without their own API key, billed by usage.
 
 ## Known gaps
 

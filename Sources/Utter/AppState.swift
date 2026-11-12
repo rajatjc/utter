@@ -215,11 +215,6 @@ final class AppState: ObservableObject {
             hotkeys.reset()
             return notice("Muted. Click the mic icon on the bar to unmute.")
         }
-        guard LicenseManager.shared.canDictate else {
-            hotkeys.reset()
-            SettingsWindow.show(page: .license)
-            return fail("Your free trial has ended. Add a license in Settings → License.")
-        }
         work?.cancel()
         CorrectionWatcher.shared.stop()
         // Whisper was unloaded to save memory: it reloads (~1 s) while you talk.

@@ -47,7 +47,7 @@ flowchart TB
 
 ## A dictation, step by step
 
-0. **Before listening.** The license or trial is checked, a start chime plays (its sound is cut from the recording), and `CursorContext` reads the text before and after the cursor through Accessibility.
+0. **Before listening.** A start chime plays (its sound is cut from the recording), and `CursorContext` reads the text before and after the cursor through Accessibility.
 1. **Hotkey.** `HotkeyMonitor` feeds key events into `ChordStateMachine`, which decides press, release, cancel (any other key or modifier) or hands-free lock (double-press).
 2. **Capture.** `SpeechEngine` records the microphone as 16 kHz mono WAV. Apple's recognizer runs alongside only if it's the chosen transcriber or the live preview is turned on.
 3. **Transcribe.** With Parakeet (the default), the whole recording is transcribed on release, trimmed to where speech ends; it takes about 0.3 s for 20 s of speech. With Whisper, transcription happens while the user talks: every half second, `WhisperTranscriber` asks `PauseChunker` (UtterCore) whether the unsent audio has reached a natural pause, at least 0.3 s of near-silence after 6 s of speech (or the quietest moment after 20 s). If so, that chunk goes to the sidecar in the background, with the personal dictionary and the end of the previous chunk as context. On release only the remainder is sent, so the wait stays around 0.6 s regardless of length. If a chunk fails, the whole recording is transcribed once instead; if Whisper isn't available, Apple's recognizer is used.
@@ -62,8 +62,8 @@ The island keeps one size from listening through "Polishing" to "Inserted N word
 
 | Area | Location | Role |
 |---|---|---|
-| Core logic | `Sources/UtterCore` | Pure Swift with no UI: hotkey rules, pause-aligned chunking, speech detection, voice edits, cursor continuation, correction finding, usage stats, license verification, cleanup guard, snippets, notch layout. Checked by `swift run UtterChecks`. |
-| Features | `Sources/Utter/Features` | Chimes, cursor context, correction learning, stats storage, license and trial state |
+| Core logic | `Sources/UtterCore` | Pure Swift with no UI: hotkey rules, pause-aligned chunking, speech detection, voice edits, cursor continuation, correction finding, usage stats, cleanup guard, snippets, notch layout. Checked by `swift run UtterChecks`. |
+| Features | `Sources/Utter/Features` | Chimes, cursor context, correction learning, stats storage |
 | Session | `AppState.swift` | Phases (idle, listening, processing, done, failed), history, permissions |
 | Pipeline | `Sources/Utter/Pipeline` | `Transcriber`, `TextCleaner` and `Inserter` implementations, chosen per session |
 | Speech | `SpeechEngine.swift`, `RecognitionStream.swift` | Microphone, WAV capture, Apple recognizer with pause stitching |
@@ -88,7 +88,6 @@ The island keeps one size from listening through "Polishing" to "Inserted N word
 | Usage stats | Word, dictation and second counts per day in `stats.json`; no text |
 | Diagnostics | `diagnostics.log` (capped at 2 MB, one older file kept): held modifier keys and what they triggered, a count of other key presses every 10 minutes, sleep/wake/lock, permission changes, session steps and microphone format. Never which letters or words were typed, and never dictated text |
 | Text around the cursor | Read when dictation starts, used only to fit the new text, never stored or sent |
-| License key, trial start | Login Keychain |
 | Anthropic API key | Login Keychain |
 | Text sent to Claude | Only in Command mode, or when Claude is chosen as the cleanup engine |
 | Window title | Used as a style hint for cleanup; can be turned off in Settings |

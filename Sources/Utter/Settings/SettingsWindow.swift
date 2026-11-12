@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case setup, claude, vocabulary, history, stats, shortcuts, license
+    case setup, claude, vocabulary, history, stats, shortcuts
 
     var id: String { rawValue }
 
@@ -15,7 +15,6 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .history: "History"
         case .stats: "Stats"
         case .shortcuts: "Shortcuts"
-        case .license: "License"
         }
     }
 
@@ -27,7 +26,6 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .history: "clock.arrow.circlepath"
         case .stats: "chart.bar.fill"
         case .shortcuts: "keyboard"
-        case .license: "checkmark.seal"
         }
     }
 }
@@ -128,7 +126,6 @@ struct SettingsPageView: View {
         case .history: HistoryPage()
         case .stats: StatsPage()
         case .shortcuts: ShortcutsPage()
-        case .license: LicensePage()
         }
     }
 }
