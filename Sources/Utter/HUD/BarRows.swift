@@ -148,19 +148,28 @@ struct SessionRow: View {
         .padding(.trailing, 6)
     }
 
+    /// The orb is drawn at 45 pt inside the badge's 56 pt slot, so the island
+    /// keeps the same size in every phase.
+    private static let orbSize: CGFloat = 45
+
     @ViewBuilder private var badge: some View {
         switch state.phase {
         case .listening:
-            AIOrb(mood: .listening, level: state.level, colors: state.hudColors, since: state.phaseSince)
+            orb(.listening, level: state.level)
         case .processing:
-            AIOrb(mood: .thinking, level: 0, colors: state.hudColors, since: state.phaseSince)
+            orb(.thinking)
         case .done:
-            AIOrb(mood: .done, level: 0, colors: state.hudColors, since: state.phaseSince)
+            orb(.done)
         case .failed:
-            AIOrb(mood: .failed, level: 0, colors: state.hudColors, since: state.phaseSince)
+            orb(.failed)
         default:
             iconBadge.frame(width: 32, height: 32).padding(12)
         }
+    }
+
+    private func orb(_ mood: AIOrb.Mood, level: Float = 0) -> some View {
+        AIOrb(mood: mood, level: level, colors: state.hudColors, since: state.phaseSince, size: Self.orbSize)
+            .frame(width: 56, height: 56)
     }
 
     @ViewBuilder private var iconBadge: some View {
