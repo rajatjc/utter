@@ -79,6 +79,9 @@ enum Snapshots {
         state.listeningSince = Date().addingTimeInterval(-7)
         state.level = 0.6
         bar("listening-voice-only")
+        state.handsFree = true
+        bar("listening-voice-only-handsfree") // same size as listening-voice-only
+        state.handsFree = false
         state.livePreview = true
         state.level = 0
         bar("listening-empty")

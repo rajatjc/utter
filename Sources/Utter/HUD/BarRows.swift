@@ -55,6 +55,18 @@ struct SessionRow: View {
     @ViewBuilder private var compactSlot: some View {
         ZStack {
             switch state.phase {
+            case .listening(let mode) where state.handsFree:
+                // Hands-free: the finish and cancel buttons share the slot
+                // with a shorter waveform, so the island stays the same size.
+                HStack(spacing: 6) {
+                    Waveform(level: state.level, colors: state.hudColors, bars: 15)
+                        .frame(width: 80, height: 28)
+                        .padding(.trailing, 2)
+                    BarIconButton(symbol: "checkmark", colors: state.hudColors) { state.toggle(mode) }
+                        .help("Finish")
+                    BarIconButton(symbol: "xmark") { state.cancel() }
+                        .help("Cancel")
+                }
             case .listening:
                 Waveform(level: state.level, colors: state.hudColors, bars: 28)
                     .frame(width: 150, height: 28)
@@ -122,7 +134,7 @@ struct SessionRow: View {
                     .frame(width: 76, height: 28)
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
-            if state.hudIsListening {
+            if state.hudIsListening, !compact {
                 if state.handsFree {
                     BarIconButton(symbol: "checkmark", colors: state.hudColors) {
                         if case .listening(let mode) = state.phase { state.toggle(mode) }
