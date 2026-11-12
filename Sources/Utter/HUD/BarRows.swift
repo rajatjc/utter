@@ -148,9 +148,9 @@ struct SessionRow: View {
         .padding(.trailing, 6)
     }
 
-    /// The orb is drawn at 45 pt inside the badge's 56 pt slot, so the island
+    /// The orb is drawn at 40 pt inside the badge's 56 pt slot, so the island
     /// keeps the same size in every phase.
-    private static let orbSize: CGFloat = 45
+    private static let orbSize: CGFloat = 40
 
     @ViewBuilder private var badge: some View {
         switch state.phase {

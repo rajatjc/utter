@@ -13,6 +13,10 @@ enum Snapshots {
         guard let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count else { return false }
         let dir = URL(fileURLWithPath: args[i + 1], isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // `--blobs N`: render the orb with N blobs, to try a different count.
+        if let b = args.firstIndex(of: "--blobs"), b + 1 < args.count, let n = Int(args[b + 1]) {
+            OrbStyle.blobCount = n
+        }
 
         let state = AppState.shared
         state.frozenPermissions = true

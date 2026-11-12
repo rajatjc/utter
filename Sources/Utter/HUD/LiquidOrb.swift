@@ -35,12 +35,15 @@ struct BlobShape: Shape {
         (1, 0.55, 0.0, 0.30), (2, -0.83, 1.3, 0.45), (3, 0.61, 2.1, 0.28), (4, -0.47, 0.7, 0.12),
     ]
 
-    /// The orb's three overlapping copies: an oval, a rounded triangle and a
-    /// soft square. Different shapes keep each outline recognisable where they cross.
-    static let trio: [[Bulge]] = [
+    /// The orb's overlapping copies, used in order (`OrbStyle.blobCount` of them):
+    /// an oval, a rounded triangle, a soft square, a lopsided bean and a soft
+    /// pentagon. Different shapes keep each outline recognisable where they cross.
+    static let shapes: [[Bulge]] = [
         [(2, 0.40, 0.0, 0.90), (3, -0.50, 1.0, 0.15), (1, 0.30, 2.0, 0.10)],
         [(3, -0.45, 0.5, 0.85), (2, 0.60, 1.4, 0.15), (4, 0.30, 0.2, 0.10)],
         [(2, -0.35, 2.2, 0.55), (4, 0.50, 0.9, 0.45), (1, 0.70, 0.0, 0.10)],
+        [(1, 0.55, 1.7, 0.60), (2, -0.40, 0.3, 0.50), (3, 0.35, 2.4, 0.12)],
+        [(5, 0.30, 0.6, 0.45), (2, -0.55, 1.9, 0.35), (1, 0.45, 0.4, 0.10)],
     ]
 
     func path(in rect: CGRect) -> Path {
@@ -75,6 +78,11 @@ struct BlobShape: Shape {
     }
 }
 
+/// How many blobs the orb draws (up to `BlobShape.shapes.count`).
+enum OrbStyle {
+    nonisolated(unsafe) static var blobCount = 5
+}
+
 /// Developer snapshots only (`--snapshot`): when set, animated views draw this
 /// moment instead of the real time, and every orb draws `motion` without
 /// advancing it, so an animation can be rendered frame by frame.
@@ -83,7 +91,7 @@ enum SnapshotClock {
     nonisolated(unsafe) static var motion: BlobMotion?
 }
 
-/// Frame-to-frame motion for the three blobs. Phases are integrated over time
+/// Frame-to-frame motion for the blobs. Phases are integrated over time
 /// (so changing speed never makes a shape jump) and the mic level is eased.
 ///
 /// When you start speaking after a pause (`SpeechOnset`: not every syllable),
@@ -94,15 +102,17 @@ enum SnapshotClock {
 /// With Reduce Motion on (System Settings → Accessibility → Display) there is
 /// no jolt and the blobs turn and morph at half speed.
 final class BlobMotion: ObservableObject {
-    static let speeds = [1.0, 1.35, 0.75]
-    static let directions = [1.0, -1.0, 0.6]
+    static let speeds = [1.0, 1.35, 0.75, 1.15, 0.9]
+    static let directions = [1.0, -1.0, 0.6, -0.8, 0.45]
+    /// Motion is kept for every possible blob; the orb draws the first `OrbStyle.blobCount`.
+    static let slots = BlobShape.shapes.count
 
     private var last: Date?
     private var onset = SpeechOnset()
     private var previousTarget = 0.0
     private var jitterClock = 0.0
-    private var kick = [0.0, 0.0, 0.0]
-    private var spikeSpeed = [0.0, 0.0, 0.0]
+    private var kick = [Double](repeating: 0, count: slots)
+    private var spikeSpeed = [Double](repeating: 0, count: slots)
     private var reduceMotion = false
 
     private(set) var level = 0.0
@@ -119,9 +129,9 @@ final class BlobMotion: ObservableObject {
     var shake: Double { min(1, energy + (reduceMotion ? 0 : 0.5 * voice)) }
     /// Random -1…1, changed ~30 times a second: shake and flicker during a jolt.
     private(set) var jitter = 0.0
-    private(set) var flow = [0.0, 0.0, 0.0]
-    private(set) var rotation = [0.0, 2.094, 4.189]
-    private(set) var spikes = [BlobShape.Spike](repeating: .none, count: 3)
+    private(set) var flow = [Double](repeating: 0, count: slots)
+    private(set) var rotation = (0..<slots).map { Double($0) * 2 * .pi / 3 + Double($0 / 3) * 1.05 }
+    private(set) var spikes = [BlobShape.Spike](repeating: .none, count: slots)
     private(set) var buzz = 0.0
     private(set) var time = 0.0
 
@@ -142,7 +152,7 @@ final class BlobMotion: ObservableObject {
         let rise = target - previousTarget
         previousTarget = target
         if rise > 0.06, !reduceMotion { // low enough that soft syllables count too
-            for i in 0..<3 {
+            for i in 0..<Self.slots {
                 kick[i] += (Bool.random() ? -1 : 1) * Double.random(in: 0.6...1.8) * rise * 2
                 spikes[i].lobes = Double(Int.random(in: 3...8))
                 spikes[i].lobes2 = Double(Int.random(in: 7...12))
@@ -155,7 +165,7 @@ final class BlobMotion: ObservableObject {
             // Louder starts jolt harder.
             let amount = min(1, 0.35 + target)
             energy = min(1, energy + amount)
-            for i in 0..<3 {
+            for i in 0..<Self.slots {
                 kick[i] += (Bool.random() ? -1 : 1) * Double.random(in: 2...6) * amount
                 spikes[i].lobes = Double(Int.random(in: 3...8))
                 spikes[i].lobes2 = Double(Int.random(in: 7...12))
@@ -170,7 +180,7 @@ final class BlobMotion: ObservableObject {
             jitter = Double.random(in: -1...1)
         }
         let pace = reduceMotion ? 0.5 : 1.0
-        for i in 0..<3 {
+        for i in 0..<Self.slots {
             kick[i] *= exp(-dt / 0.35)
             flow[i] += dt * pace * (0.8 + 1.5 * level + 6 * energy) * Self.speeds[i]
             rotation[i] += dt * (pace * (0.2 + 0.9 * level) * 0.6 * Self.directions[i] + kick[i])
@@ -184,14 +194,14 @@ final class BlobMotion: ObservableObject {
     }
 }
 
-/// Three dark blobs sharing one centre, each a different shape with its edge
+/// Five dark blobs (`OrbStyle.blobCount`) sharing one centre, each a different shape with its edge
 /// lit in its own colour, so where they overlap stays easy to see.
 ///
 /// - Listening: quiet, they turn and morph smoothly. While you talk, the edges
 ///   spike and the orb shakes in step with your voice, like the waveform's
 ///   bars, and the start of speech jolts it hardest (see `BlobMotion`).
 /// - Thinking: calm, slow morph.
-/// - Done: the three settle into one circle, a completion ring draws around
+/// - Done: the blobs settle into one circle, a completion ring draws around
 ///   it, then a check. Failed: settles amber with an exclamation mark.
 ///
 /// Everything is drawn inside a fixed `size` square, so it never reaches up
@@ -210,13 +220,16 @@ struct AIOrb: View {
     @StateObject private var motion = BlobMotion()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// One colour per blob.
+    /// One colour per blob, in drawing order (the first `OrbStyle.blobCount` are used).
     private var hues: [Color] {
         let cool = Color(red: 0.42, green: 0.45, blue: 1.0)
+        let cyan = Color(red: 0.30, green: 0.78, blue: 0.95)
         switch mood {
-        case .listening: return [Theme.amber, colors[0], cool]
-        case .thinking: return [Theme.magenta, Theme.violet, cool]
-        case .done, .failed: return [colors[0], colors[colors.count > 1 ? 1 : 0], colors[0]]
+        case .listening: return [Theme.amber, colors[0], cool, Theme.violet, cyan]
+        case .thinking: return [Theme.magenta, Theme.violet, cool, Theme.magenta, cyan]
+        case .done, .failed:
+            let second = colors[colors.count > 1 ? 1 : 0]
+            return [colors[0], second, colors[0], second, colors[0]]
         }
     }
 
@@ -282,15 +295,18 @@ struct AIOrb: View {
         let vibration = (0.02 * lv + 0.05 * voice + 0.03 * energy) * settle
         let hues = self.hues
 
-        let paths: [Path] = (0..<3).map { i in
-            let ri = CGFloat(r * (1 - 0.03 * Double(i) * settle))
+        let count = max(1, min(OrbStyle.blobCount, BlobMotion.slots))
+        // More blobs share the light: each glow is dimmed so the overlaps don't wash out white.
+        let share = min(1, 3 / Double(count))
+        let paths: [Path] = (0..<count).map { i in
+            let ri = CGFloat(r * (1 - 0.025 * Double(i) * settle))
             var spike = preview == nil ? motion.spikes[i] : .none
             spike.amount *= settle
             let flow = preview.map { $0.flow * BlobMotion.speeds[i] + Double(i) * 2.2 } ?? motion.flow[i]
-            let rotation = preview.map { Double(i) * 2.094 + $0.drift * 0.6 * BlobMotion.directions[i] }
+            let rotation = preview.map { Double(i) * 2 * .pi / Double(count) + $0.drift * 0.6 * BlobMotion.directions[i] }
                 ?? motion.rotation[i]
             return BlobShape(flow: flow, buzz: motion.buzz, wobble: wobble, vibration: vibration,
-                             bulges: BlobShape.trio[i], rotation: rotation, spike: spike)
+                             bulges: BlobShape.shapes[i], rotation: rotation, spike: spike)
                 .path(in: CGRect(x: center.x - ri, y: center.y - ri, width: 2 * ri, height: 2 * ri))
         }
         let flicker = 1 + 0.5 * shake * jitter
@@ -301,8 +317,8 @@ struct AIOrb: View {
         halo.blendMode = .plusLighter
         halo.drawLayer { layer in
             layer.addFilter(.blur(radius: 4 * k))
-            for i in 0..<3 {
-                layer.stroke(paths[i], with: .color(hues[i].opacity(min(1, (0.15 + 0.25 * lv + 0.3 * energy) * flicker))),
+            for i in paths.indices {
+                layer.stroke(paths[i], with: .color(hues[i].opacity(min(1, (0.15 + 0.25 * lv + 0.3 * energy) * flicker * share))),
                              lineWidth: 2.5 * k)
             }
         }
@@ -310,7 +326,7 @@ struct AIOrb: View {
         // Near-black bodies, so the orb melts into the notch.
         for path in paths { ctx.fill(path, with: .color(Color(white: 0.043))) }
 
-        // Soft glow just inside each edge. One blur for all three (blurs are the
+        // Soft glow just inside each edge. One blur for all of them (blurs are the
         // expensive part of a frame): each glow is clipped to its own blob, the
         // layer is blurred once, then clipped to the orb's outline.
         var outline = Path()
@@ -320,11 +336,11 @@ struct AIOrb: View {
         glow.clip(to: outline)
         glow.addFilter(.blur(radius: blob * 0.035))
         glow.drawLayer { layer in
-            for i in 0..<3 {
+            for i in paths.indices {
                 var inside = layer
                 inside.clip(to: paths[i])
-                // Kept low: three glows add up, and too much washes the overlaps white.
-                inside.stroke(paths[i], with: .color(hues[i].opacity(min(1, 0.28 + 0.2 * lv + 0.2 * energy))),
+                // Kept low: the glows add up, and too much washes the overlaps white.
+                inside.stroke(paths[i], with: .color(hues[i].opacity(min(1, 0.28 + 0.2 * lv + 0.2 * energy) * share)),
                               lineWidth: blob * (0.09 + 0.04 * lv))
             }
         }
@@ -332,9 +348,9 @@ struct AIOrb: View {
         // Crisp edges on top: these make each outline traceable through the overlaps.
         var edges = ctx
         edges.blendMode = .plusLighter
-        for i in 0..<3 {
+        for i in paths.indices {
             edges.stroke(paths[i], with: .color(hues[i].opacity(min(1, (0.7 + 0.3 * lv) * flicker))),
-                         lineWidth: 1.4 * k)
+                         lineWidth: (count > 3 ? 1.2 : 1.4) * k) // thinner when there are more lines
         }
     }
 }
